@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+
+    <style>
+
+        @font-face {
+            font-family: "DejaVuSans";
+            src: url("file:///{{ font_path }}/DejaVuSans.ttf");
+        }
+
+        @font-face {
+            font-family: "DejaVuSans Bold";
+            src: url("file:///{{ font_path }}/DejaVuSans-Bold.ttf");
+        }
+
+        body {
+            font-family: "DejaVu", sans-serif;
+            margin: 20px;
+            color: #2c3e50;
+            line-height: 1.4;
+        }
+
+        .header {
+            text-align: center;
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-family: "DejaVuSans Bold", "DejaVuSans", sans-serif;
+        }
+
+        .subtitle {
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th {
+            background-color: #34495e;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+            font-family: "DejaVuSans Bold", "DejaVuSans", sans-serif;
+        }
+
+        td {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            font-size: 11px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 11px;
+            color: #7f8c8d;
+            padding-top: 10px;
+        }
+
+        .summary {
+            background-color: #ecf0f1;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            font-family: "DejaVuSans Bold", "DejaVuSans", sans-serif;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title">ШКОЛЬНЫЙ ОТЧЕТ</div>
+    <div class="subtitle">{{ report_type }} | {{ generation_date }}</div>
+</div>
+
+<table>
+    <thead>
+    <tr>
+        {% for header in headers %}
+        <th>{{ header }}</th>
+        {% endfor %}
+    </tr>
+    </thead>
+
+    <tbody>
+    {% for row in data %}
+    <tr>
+        {% for item in row %}
+        <td>{{ item }}</td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<div class="summary">
+    Общее количество записей: {{ total_count }}
+</div>
+
+<div class="footer">
+    Сгенерировано автоматически школьной системой
+</div>
+
+</body>
+</html>
