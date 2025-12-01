@@ -1,14 +1,16 @@
+import os
 import psycopg2
 
 class SchoolDatabase:
     def __init__(self):
-        self.DB_CONNECTION = psycopg2.connect(
-            dbname="school_db",
-            user="postgres",
-            password="18072007",
-            host="localhost",
-            port=5432
-        )
+        db_config = {
+            "dbname": os.getenv("SCHOOL_DB_NAME", "school_db"),
+            "user": os.getenv("SCHOOL_DB_USER", "postgres"),
+            "password": os.getenv("SCHOOL_DB_PASSWORD", "18072007"),
+            "host": os.getenv("SCHOOL_DB_HOST", "localhost"),
+            "port": int(os.getenv("SCHOOL_DB_PORT", 5432)),
+        }
+        self.DB_CONNECTION = psycopg2.connect(**db_config)
         self.DB_CURSOR = self.DB_CONNECTION.cursor()
         self.__create_tables()
 
@@ -47,19 +49,22 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def add_student(self, last_name, first_name, class_name,  middle_name=""):
-        get_student_query = """
-                        INSERT INTO students (last_name, first_name, 
+        insert_student_query = """
+                        INSERT INTO students (last_name, first_name,
                         middle_name, class_name)
                         VALUES (%s, %s, %s, %s)
+                        RETURNING id
                         """
-        self.DB_CURSOR.execute(get_student_query,
+        self.DB_CURSOR.execute(insert_student_query,
                                (
                                    last_name,
-                                    first_name,
-                                    class_name,
-                                    middle_name
+                                   first_name,
+                                   middle_name,
+                                   class_name
                                ))
+        student_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
+        return student_id
 
     def update_students(self, student_id, last_name, first_name,
                         class_name, middle_name=""):
@@ -109,39 +114,49 @@ class SchoolDatabase:
         }
 
     def add_grade(self, student_id, subject_name, grade):
-        query = "INSERT INTO grades (student_id, subject_name, grade) VALUES (%s, %s, %s)"
+        query = """
+            INSERT INTO grades (student_id, subject_name, grade)
+            VALUES (%s, %s, %s)
+            RETURNING id
+        """
         self.DB_CURSOR.execute(query, (student_id, subject_name, grade))
+        grade_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
+        return grade_id
 
     def delete_student(self, student_id):
+        self.DB_CURSOR.execute("DELETE FROM grades WHERE student_id = %s", (student_id,))
         self.DB_CURSOR.execute("DELETE FROM students WHERE id = %s", (student_id,))
         self.DB_CONNECTION.commit()
 
-    def add_teacher(self, last_name, first_name, classes, subject, middle_name=""):
+    def add_teacher(self, last_name, first_name, subject, classes, middle_name=""):
         add_teacher_query = """
                                 INSERT INTO teachers (last_name, first_name, 
                                 middle_name, subject, classes)
                                 VALUES (%s, %s, %s, %s, %s)
+                                RETURNING id
                                 """
         self.DB_CURSOR.execute(add_teacher_query,
                                (
                                    last_name,
                                    first_name,
-                                   classes,
                                    subject,
+                                   classes,
                                    middle_name
                                ))
+        teacher_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
+        return teacher_id
 
     def update_teachers(self, teacher_id, last_name, first_name,
-                        classes, subject, middle_name=""):
+                        subject, classes, middle_name=""):
         update_teachers_query = """
-                    UPDATE teachers SET last_name = %s, first_name = %s, classes = %s,
-                    subject = %s, middle_name = %s
+                    UPDATE teachers SET last_name = %s, first_name = %s, subject = %s,
+                    classes = %s, middle_name = %s
                     WHERE id = %s
                 """
-        self.DB_CURSOR.execute(update_teachers_query, (last_name, first_name, classes,
-                                                      subject, middle_name, teacher_id))
+        self.DB_CURSOR.execute(update_teachers_query, (last_name, first_name, subject,
+                                                      classes, middle_name, teacher_id))
         self.DB_CONNECTION.commit()
 
     def get_teachers_by_subject(self, subject):
@@ -163,3 +178,41 @@ class SchoolDatabase:
     def delete_teacher(self, teacher_id):
         self.DB_CURSOR.execute("DELETE FROM teachers WHERE id = %s", (teacher_id,))
         self.DB_CONNECTION.commit()
+
+    def get_all_grades_rows(self):
+        grade_rows_query = """
+            SELECT g.id,
+                   g.student_id,
+                   s.last_name,
+                   s.first_name,
+                   s.middle_name,
+                   g.subject_name,
+                   g.grade
+            FROM grades g
+            JOIN students s ON s.id = g.student_id
+            ORDER BY g.id
+        """
+        self.DB_CURSOR.execute(grade_rows_query)
+        return self.DB_CURSOR.fetchall()
+
+    def update_grade(self, grade_id, student_id, subject_name, grade):
+        query = """
+            UPDATE grades
+            SET student_id = %s, subject_name = %s, grade = %s
+            WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (student_id, subject_name, grade, grade_id))
+        self.DB_CONNECTION.commit()
+
+    def delete_grade(self, grade_id):
+        self.DB_CURSOR.execute("DELETE FROM grades WHERE id = %s", (grade_id,))
+        self.DB_CONNECTION.commit()
+
+    def find_student_id(self, last_name, first_name, middle_name=""):
+        query = """
+            SELECT id FROM students
+            WHERE last_name = %s AND first_name = %s AND COALESCE(middle_name, '') = %s
+        """
+        self.DB_CURSOR.execute(query, (last_name, first_name, middle_name))
+        result = self.DB_CURSOR.fetchone()
+        return result[0] if result else None

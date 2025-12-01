@@ -48,7 +48,10 @@ class SchoolDataManager:
             self.db.DB_CURSOR.execute("SELECT COUNT(*) FROM teachers")
             teacher_count = self.db.DB_CURSOR.fetchone()[0]
 
-            return student_count == 0 and teacher_count == 0
+            self.db.DB_CURSOR.execute("SELECT COUNT(*) FROM grades")
+            grade_count = self.db.DB_CURSOR.fetchone()[0]
+
+            return student_count == 0 and teacher_count == 0 and grade_count == 0
         except:
             return True
 
@@ -56,38 +59,84 @@ class SchoolDataManager:
         """Заполнение демо-данными согласно требованиям методички"""
         # Демо-учителя
         demo_teachers = [
-            ("Иванова", "Анна", "Петровна", "Математика", ["5А", "6Б", "9В"]),
-            ("Петров", "Сергей", "Владимирович", "Физика", ["7А", "8Б", "10А"]),
-            ("Сидорова", "Ольга", "Михайловна", "Литература", ["5А", "6А", "7А", "8А"]),
+            {"last_name": "Иванова", "first_name": "Анна", "middle_name": "Петровна",
+             "subject": "Математика", "classes": ["5А", "6Б", "9В"]},
+            {"last_name": "Петров", "first_name": "Сергей", "middle_name": "Владимирович",
+             "subject": "Физика", "classes": ["7А", "8Б", "10А"]},
+            {"last_name": "Сидорова", "first_name": "Ольга", "middle_name": "Михайловна",
+             "subject": "Литература", "classes": ["5А", "6А", "7А", "8А"]},
         ]
 
         for teacher in demo_teachers:
-            self.db.add_teacher(*teacher)
+            self.db.add_teacher(
+                teacher["last_name"],
+                teacher["first_name"],
+                teacher["subject"],
+                teacher["classes"],
+                teacher["middle_name"]
+            )
 
         # Демо-ученики
         demo_students = [
-            ("Алексеев", "Александр", "5А", "Сергеевич"),
-            ("Борисова", "Екатерина", "6Б", "Игоревна"),
-            ("Васильев", "Максим", "7А", "Дмитриевич"),
-            ("Григорьева", "София", "8Б", "Андреевна"),
+            {"last_name": "Алексеев", "first_name": "Александр", "middle_name": "Сергеевич",
+             "class_name": ["5А"]},
+            {"last_name": "Борисова", "first_name": "Екатерина", "middle_name": "Игоревна",
+             "class_name": ["6Б"]},
+            {"last_name": "Васильев", "first_name": "Максим", "middle_name": "Дмитриевич",
+             "class_name": ["7А"]},
+            {"last_name": "Григорьева", "first_name": "София", "middle_name": "Андреевна",
+             "class_name": ["8Б"]},
         ]
 
+        student_ids = {}
+
         for student in demo_students:
-            self.db.add_student(*student)
+            student_id = self.db.add_student(
+                student["last_name"],
+                student["first_name"],
+                student["class_name"],
+                student["middle_name"]
+            )
+            fio_key = f"{student['last_name']} {student['first_name']} {student['middle_name']}".strip()
+            student_ids[fio_key] = student_id
+
+        demo_grades = [
+            ("Алексеев Александр Сергеевич", "Математика", 5),
+            ("Борисова Екатерина Игоревна", "Физика", 4),
+            ("Васильев Максим Дмитриевич", "Литература", 3),
+            ("Григорьева София Андреевна", "Информатика", 5),
+        ]
+
+        for fio, subject, grade in demo_grades:
+            student_id = student_ids.get(fio)
+            if student_id:
+                self.db.add_grade(student_id, subject, grade)
+
+    def _parse_fio(self, fio):
+        """Разбивает ФИО на составные части"""
+        parts = fio.split()
+        last_name = parts[0] if len(parts) > 0 else ""
+        first_name = parts[1] if len(parts) > 1 else ""
+        middle_name = parts[2] if len(parts) > 2 else ""
+        return last_name, first_name, middle_name
 
     def get_all_teachers(self):
         """Получение всех учителей в формате для GUI"""
         try:
-            self.db.DB_CURSOR.execute("SELECT last_name, first_name, middle_name, subject, classes FROM teachers")
+            self.db.DB_CURSOR.execute(
+                "SELECT id, last_name, first_name, middle_name, subject, classes FROM teachers"
+            )
             teachers = self.db.DB_CURSOR.fetchall()
 
-            # Преобразуем в формат для Treeview: (ФИО, Предмет, Классы)
             result = []
             for teacher in teachers:
-                last_name, first_name, middle_name, subject, classes = teacher
+                teacher_id, last_name, first_name, middle_name, subject, classes = teacher
                 fio = f"{last_name} {first_name} {middle_name}".strip()
                 classes_str = ", ".join(classes) if classes else ""
-                result.append((fio, subject, classes_str))
+                result.append({
+                    "id": teacher_id,
+                    "values": (fio, subject, classes_str)
+                })
 
             return result
         except Exception as e:
@@ -97,40 +146,49 @@ class SchoolDataManager:
     def get_all_students(self):
         """Получение всех учеников в формате для GUI"""
         try:
-            self.db.DB_CURSOR.execute("SELECT last_name, first_name, middle_name, class_name FROM students")
+            self.db.DB_CURSOR.execute(
+                "SELECT id, last_name, first_name, middle_name, class_name FROM students"
+            )
             students = self.db.DB_CURSOR.fetchall()
 
-            # Преобразуем в формат для Treeview: (ФИО, Класс)
             result = []
             for student in students:
-                last_name, first_name, middle_name, class_name = student
+                student_id, last_name, first_name, middle_name, class_name = student
                 fio = f"{last_name} {first_name} {middle_name}".strip()
-                # class_name это массив, берем первый элемент
-                class_str = class_name[0] if class_name and len(class_name) > 0 else ""
-                result.append((fio, class_str))
+                class_str = ", ".join(class_name) if class_name else ""
+                result.append({
+                    "id": student_id,
+                    "values": (fio, class_str)
+                })
 
             return result
         except Exception as e:
             print(f"Ошибка получения учеников: {e}")
             return []
 
+    def get_all_grades(self):
+        """Получение всех оценок для отображения"""
+        try:
+            grades = self.db.get_all_grades_rows()
+            result = []
+            for row in grades:
+                grade_id, student_id, last_name, first_name, middle_name, subject_name, grade = row
+                fio = f"{last_name} {first_name} {middle_name}".strip()
+                result.append({
+                    "id": grade_id,
+                    "student_id": student_id,
+                    "values": (fio, subject_name, str(grade))
+                })
+            return result
+        except Exception as e:
+            print(f"Ошибка получения оценок: {e}")
+            return []
+
     def add_teacher_gui(self, fio, subject, classes_str):
         """Добавление учителя из GUI"""
         try:
-            # Парсим ФИО
-            parts = fio.split()
-            if len(parts) >= 2:
-                last_name = parts[0]
-                first_name = parts[1]
-                middle_name = parts[2] if len(parts) > 2 else ""
-            else:
-                last_name = fio
-                first_name = ""
-                middle_name = ""
-
-            # Парсим классы
+            last_name, first_name, middle_name = self._parse_fio(fio)
             classes = [cls.strip() for cls in classes_str.split(",") if cls.strip()]
-
             self.db.add_teacher(last_name, first_name, subject, classes, middle_name)
             return True
         except Exception as e:
@@ -140,51 +198,79 @@ class SchoolDataManager:
     def add_student_gui(self, fio, class_name):
         """Добавление ученика из GUI"""
         try:
-            # Парсим ФИО
-            parts = fio.split()
-            if len(parts) >= 2:
-                last_name = parts[0]
-                first_name = parts[1]
-                middle_name = parts[2] if len(parts) > 2 else ""
-            else:
-                last_name = fio
-                first_name = ""
-                middle_name = ""
-
-            self.db.add_student(last_name, first_name, [class_name], middle_name)
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            classes = [cls.strip() for cls in class_name.split(",") if cls.strip()]
+            self.db.add_student(last_name, first_name, classes, middle_name)
             return True
         except Exception as e:
             print(f"Ошибка добавления ученика: {e}")
             return False
 
-    def update_teacher_gui(self, old_fio, new_fio, new_subject, new_classes_str):
+    def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str):
         """Обновление учителя из GUI"""
         try:
-            # Для простоты удаляем и добавляем заново
-            # В реальном приложении нужно использовать ID
-            self.delete_teacher_gui(old_fio)
-            return self.add_teacher_gui(new_fio, new_subject, new_classes_str)
+            last_name, first_name, middle_name = self._parse_fio(new_fio)
+            classes = [cls.strip() for cls in new_classes_str.split(",") if cls.strip()]
+            self.db.update_teachers(teacher_id, last_name, first_name, new_subject, classes, middle_name)
+            return True
         except Exception as e:
             print(f"Ошибка обновления учителя: {e}")
             return False
 
-    def delete_teacher_gui(self, fio):
+    def delete_teacher_gui(self, teacher_id):
         """Удаление учителя из GUI"""
         try:
-            parts = fio.split()
-            if len(parts) >= 2:
-                last_name = parts[0]
-                first_name = parts[1]
-
-                self.db.DB_CURSOR.execute(
-                    "DELETE FROM teachers WHERE last_name = %s AND first_name = %s",
-                    (last_name, first_name)
-                )
-                self.db.DB_CONNECTION.commit()
-                return True
-            return False
+            self.db.delete_teacher(teacher_id)
+            return True
         except Exception as e:
             print(f"Ошибка удаления учителя: {e}")
+            return False
+
+    def update_student_gui(self, student_id, new_fio, new_class_str):
+        """Обновление ученика из GUI"""
+        try:
+            last_name, first_name, middle_name = self._parse_fio(new_fio)
+            classes = [cls.strip() for cls in new_class_str.split(",") if cls.strip()]
+            self.db.update_students(student_id, last_name, first_name, classes, middle_name)
+            return True
+        except Exception as e:
+            print(f"Ошибка обновления ученика: {e}")
+            return False
+
+    def delete_student_gui(self, student_id):
+        """Удаление ученика из GUI"""
+        try:
+            self.db.delete_student(student_id)
+            return True
+        except Exception as e:
+            print(f"Ошибка удаления ученика: {e}")
+            return False
+
+    def update_grade_gui(self, grade_id, fio, subject_name, grade_value):
+        """Обновление оценки из GUI"""
+        try:
+            grade_int = int(grade_value)
+            if grade_int < 1 or grade_int > 5:
+                raise ValueError("Оценка должна быть от 1 до 5")
+
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            student_id = self.db.find_student_id(last_name, first_name, middle_name)
+            if not student_id:
+                raise ValueError("Указанный ученик не найден в базе")
+
+            self.db.update_grade(grade_id, student_id, subject_name, grade_int)
+            return True
+        except Exception as e:
+            print(f"Ошибка обновления оценки: {e}")
+            return False
+
+    def delete_grade_gui(self, grade_id):
+        """Удаление оценки из GUI"""
+        try:
+            self.db.delete_grade(grade_id)
+            return True
+        except Exception as e:
+            print(f"Ошибка удаления оценки: {e}")
             return False
 
     def get_academic_report(self):
@@ -247,11 +333,12 @@ class ReportGenerator:
 
             if report_type == "Учителя":
                 headers = ["ФИО", "Предмет", "Классы"]
-            else:
+            elif report_type == "Ученики":
                 headers = ["ФИО", "Класс"]
+            else:
+                headers = ["ФИО", "Предмет", "Оценка"]
 
             font_path = os.path.abspath("fonts").replace("\\", "/")
-            print(f"{font_path}")
 
             html_content = template.render(
                 report_type=report_type,
@@ -274,8 +361,8 @@ class ReportGenerator:
             pdfmetrics.registerFont(TTFont("DejaVuSans", os.path.join(font_folder, "DejaVuSans.ttf")))
             pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", os.path.join(font_folder, "DejaVuSans-Bold.ttf")))
 
-            DEFAULT_FONT["helvetica"] = "DejavuSans"
-            DEFAULT_FONT["Helvetica"] = "DejavuSans"
+            DEFAULT_FONT["helvetica"] = "DejaVuSans"
+            DEFAULT_FONT["Helvetica"] = "DejaVuSans"
             DEFAULT_FONT["helvetica-bold"] = "DejaVuSans-Bold"
             DEFAULT_FONT["Helvetica-Bold"] = "DejaVuSans-Bold"
 
@@ -307,6 +394,11 @@ class SchoolApp:
 
         self.current_file = None
         self.current_table = "teachers"
+        self.data_source = {
+            "teachers": "database",
+            "students": "database",
+            "grades": "database"
+        }
 
         self.data_manager = SchoolDataManager()
 
@@ -321,6 +413,7 @@ class SchoolApp:
 
         self.create_teachers_table()
         self.create_students_table()
+        self.create_grades_table()
 
         self.show_table("teachers")
 
@@ -340,15 +433,16 @@ class SchoolApp:
         self.teachers_data = self.data_manager.get_all_teachers()
 
         for teacher in self.teachers_data:
-            self.teachers_tree.insert("", "end", values=teacher)
+            self.teachers_tree.insert("", "end", iid=str(teacher["id"]), values=teacher["values"])
 
         scrollbar = ttk.Scrollbar(self.teachers_frame, orient="vertical", command=self.teachers_tree.yview)
         self.teachers_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.teachers_tree.pack(side="left", fill="both", expand=True)
 
-        self.original_teachers_data = self.teachers_data.copy()
+        self.original_teachers_data = [row.copy() for row in self.teachers_data]
         self.teachers_sort_options = ["ФИО", "Предмет", "Классы"]
+        self.data_source["teachers"] = "database"
 
     def create_students_table(self):
         """Создание таблицы учеников с данными из БД"""
@@ -366,15 +460,42 @@ class SchoolApp:
         self.students_data = self.data_manager.get_all_students()
 
         for student in self.students_data:
-            self.students_tree.insert("", "end", values=student)
+            self.students_tree.insert("", "end", iid=str(student["id"]), values=student["values"])
 
         scrollbar = ttk.Scrollbar(self.students_frame, orient="vertical", command=self.students_tree.yview)
         self.students_tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.students_tree.pack(side="left", fill="both", expand=True)
 
-        self.original_students_data = self.students_data.copy()
+        self.original_students_data = [row.copy() for row in self.students_data]
         self.students_sort_options = ["ФИО", "Класс"]
+        self.data_source["students"] = "database"
+
+    def create_grades_table(self):
+        """Создание таблицы оценок"""
+        self.grades_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
+
+        columns = ("ФИО", "Предмет", "Оценка")
+        self.grades_tree = ttk.Treeview(self.grades_frame, columns=columns, show="headings")
+
+        for col in columns:
+            self.grades_tree.heading(col, text=col,
+                                     command=lambda c=col: self.sort_treeview(self.grades_tree, c))
+            self.grades_tree.column(col, width=200)
+
+        self.grades_data = self.data_manager.get_all_grades()
+
+        for grade in self.grades_data:
+            self.grades_tree.insert("", "end", iid=str(grade["id"]), values=grade["values"])
+
+        scrollbar = ttk.Scrollbar(self.grades_frame, orient="vertical", command=self.grades_tree.yview)
+        self.grades_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        self.grades_tree.pack(side="left", fill="both", expand=True)
+
+        self.original_grades_data = [row.copy() for row in self.grades_data]
+        self.grades_sort_options = ["ФИО", "Предмет", "Оценка"]
+        self.data_source["grades"] = "database"
 
     def setup_styles(self):
         style = ttk.Style()
@@ -528,18 +649,16 @@ class SchoolApp:
 
                 if self.current_table == "teachers":
                     tree = self.teachers_tree
-                    headers = [self.teachers_tree.heading(col)["text"] for col in self.teachers_tree["columns"]]
-                    writer.writerow(headers)
-                    for item in tree.get_children():
-                        row = [tree.set(item, col) for col in tree["columns"]]
-                        writer.writerow(row)
-                else:
+                elif self.current_table == "students":
                     tree = self.students_tree
-                    headers = [self.students_tree.heading(col)["text"] for col in self.students_tree["columns"]]
-                    writer.writerow(headers)
-                    for item in tree.get_children():
-                        row = [tree.set(item, col) for col in tree["columns"]]
-                        writer.writerow(row)
+                else:
+                    tree = self.grades_tree
+
+                headers = [tree.heading(col)["text"] for col in tree["columns"]]
+                writer.writerow(headers)
+                for item in tree.get_children():
+                    row = [tree.set(item, col) for col in tree["columns"]]
+                    writer.writerow(row)
 
             return True
         except Exception as e:
@@ -559,7 +678,7 @@ class SchoolApp:
                     teacher_element.set("fio", values[0])
                     teacher_element.set("subject", values[1])
                     teacher_element.set("classes", values[2])
-            else:
+            elif self.current_table == "students":
                 students_element = ET.SubElement(root, "students")
 
                 for item in self.students_tree.get_children():
@@ -567,6 +686,15 @@ class SchoolApp:
                     values = [self.students_tree.set(item, col) for col in self.students_tree["columns"]]
                     student_element.set("fio", values[0])
                     student_element.set("class", values[1])
+            else:
+                grades_element = ET.SubElement(root, "grades")
+
+                for item in self.grades_tree.get_children():
+                    grade_element = ET.SubElement(grades_element, "grade")
+                    values = [self.grades_tree.set(item, col) for col in self.grades_tree["columns"]]
+                    grade_element.set("fio", values[0])
+                    grade_element.set("subject", values[1])
+                    grade_element.set("value", values[2])
 
             tree = ET.ElementTree(root)
             tree.write(filename, encoding='utf-8', xml_declaration=True)
@@ -594,29 +722,26 @@ class SchoolApp:
         try:
             with open(filename, 'r', encoding='utf-8') as file:
                 reader = csv.reader(file)
+                next(reader, None)
 
                 if self.current_table == "teachers":
-                    tree = self.teachers_tree
-                    for item in tree.get_children():
-                        tree.delete(item)
-                    next(reader, None)
-                    for row in reader:
-                        if len(row) == 3:
-                            tree.insert("", "end", values=row)
-                    self.original_teachers_data = []
-                    for item in tree.get_children():
-                        self.original_teachers_data.append([tree.set(item, col) for col in tree["columns"]])
+                    rows = [{"id": None, "values": tuple(row)} for row in reader if len(row) == 3]
+                    self.teachers_data = rows
+                    self.original_teachers_data = [r.copy() for r in rows]
+                    self.data_source["teachers"] = "file"
+                    self._populate_tree(self.teachers_tree, self.teachers_data)
+                elif self.current_table == "students":
+                    rows = [{"id": None, "values": tuple(row)} for row in reader if len(row) == 2]
+                    self.students_data = rows
+                    self.original_students_data = [r.copy() for r in rows]
+                    self.data_source["students"] = "file"
+                    self._populate_tree(self.students_tree, self.students_data)
                 else:
-                    tree = self.students_tree
-                    for item in tree.get_children():
-                        tree.delete(item)
-                    next(reader, None)
-                    for row in reader:
-                        if len(row) == 2:
-                            tree.insert("", "end", values=row)
-                    self.original_students_data = []
-                    for item in tree.get_children():
-                        self.original_students_data.append([tree.set(item, col) for col in tree["columns"]])
+                    rows = [{"id": None, "student_id": None, "values": tuple(row)} for row in reader if len(row) == 3]
+                    self.grades_data = rows
+                    self.original_grades_data = [r.copy() for r in rows]
+                    self.data_source["grades"] = "file"
+                    self._populate_tree(self.grades_tree, self.grades_data)
             return True
         except Exception as e:
             raise FileOperationError(f"Ошибка при загрузке CSV файла: {str(e)}")
@@ -628,36 +753,46 @@ class SchoolApp:
             root = tree_xml.getroot()
 
             if self.current_table == "teachers":
-                tree = self.teachers_tree
-                for item in tree.get_children():
-                    tree.delete(item)
-
+                rows = []
                 teachers_element = root.find("teachers")
                 if teachers_element is not None:
                     for teacher_element in teachers_element.findall("teacher"):
                         fio = teacher_element.get("fio", "")
                         subject = teacher_element.get("subject", "")
                         classes = teacher_element.get("classes", "")
-                        tree.insert("", "end", values=(fio, subject, classes))
+                        rows.append({"id": None, "values": (fio, subject, classes)})
 
-                self.original_teachers_data = []
-                for item in tree.get_children():
-                    self.original_teachers_data.append([tree.set(item, col) for col in tree["columns"]])
-            else:
-                tree = self.students_tree
-                for item in tree.get_children():
-                    tree.delete(item)
-
+                self.teachers_data = rows
+                self.original_teachers_data = [row.copy() for row in rows]
+                self.data_source["teachers"] = "file"
+                self._populate_tree(self.teachers_tree, self.teachers_data)
+            elif self.current_table == "students":
+                rows = []
                 students_element = root.find("students")
                 if students_element is not None:
                     for student_element in students_element.findall("student"):
                         fio = student_element.get("fio", "")
                         student_class = student_element.get("class", "")
-                        tree.insert("", "end", values=(fio, student_class))
+                        rows.append({"id": None, "values": (fio, student_class)})
 
-                self.original_students_data = []
-                for item in tree.get_children():
-                    self.original_students_data.append([tree.set(item, col) for col in tree["columns"]])
+                self.students_data = rows
+                self.original_students_data = [row.copy() for row in rows]
+                self.data_source["students"] = "file"
+                self._populate_tree(self.students_tree, self.students_data)
+            else:
+                rows = []
+                grades_element = root.find("grades")
+                if grades_element is not None:
+                    for grade_element in grades_element.findall("grade"):
+                        fio = grade_element.get("fio", "")
+                        subject = grade_element.get("subject", "")
+                        grade_value = grade_element.get("value", "")
+                        rows.append({"id": None, "student_id": None, "values": (fio, subject, grade_value)})
+
+                self.grades_data = rows
+                self.original_grades_data = [row.copy() for row in rows]
+                self.data_source["grades"] = "file"
+                self._populate_tree(self.grades_tree, self.grades_data)
 
             return True
         except Exception as e:
@@ -749,12 +884,23 @@ class SchoolApp:
                 tree = self.teachers_tree
                 for item in tree.get_children():
                     tree.delete(item)
+                self.teachers_data = []
                 self.original_teachers_data = []
-            else:
+                self.data_source["teachers"] = "file"
+            elif self.current_table == "students":
                 tree = self.students_tree
                 for item in tree.get_children():
                     tree.delete(item)
+                self.students_data = []
                 self.original_students_data = []
+                self.data_source["students"] = "file"
+            else:
+                tree = self.grades_tree
+                for item in tree.get_children():
+                    tree.delete(item)
+                self.grades_data = []
+                self.original_grades_data = []
+                self.data_source["grades"] = "file"
 
             self.save_to_file(file_path)
             self.current_file = file_path
@@ -775,10 +921,10 @@ class SchoolApp:
         try:
             if self.current_table == "teachers":
                 tree = self.teachers_tree
-                original_data = self.original_teachers_data
-            else:
+            elif self.current_table == "students":
                 tree = self.students_tree
-                original_data = self.original_students_data
+            else:
+                tree = self.grades_tree
 
             selected_items = tree.selection()
             if not selected_items:
@@ -820,7 +966,7 @@ class SchoolApp:
                 classes_entry.insert(0, current_values[2])
                 entry_widgets['classes'] = classes_entry
 
-            else:
+            elif self.current_table == "students":
                 tk.Label(form_frame, text="ФИО:").grid(row=0, column=0, sticky="w", pady=5)
                 fio_entry = tk.Entry(form_frame, width=30)
                 fio_entry.grid(row=0, column=1, pady=5, padx=(10, 0))
@@ -832,13 +978,31 @@ class SchoolApp:
                 class_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
                 class_entry.insert(0, current_values[1])
                 entry_widgets['class'] = class_entry
+            else:
+                tk.Label(form_frame, text="ФИО:").grid(row=0, column=0, sticky="w", pady=5)
+                fio_entry = tk.Entry(form_frame, width=30)
+                fio_entry.grid(row=0, column=1, pady=5, padx=(10, 0))
+                fio_entry.insert(0, current_values[0])
+                entry_widgets['fio'] = fio_entry
+
+                tk.Label(form_frame, text="Предмет:").grid(row=1, column=0, sticky="w", pady=5)
+                subject_entry = tk.Entry(form_frame, width=30)
+                subject_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
+                subject_entry.insert(0, current_values[1])
+                entry_widgets['subject'] = subject_entry
+
+                tk.Label(form_frame, text="Оценка:").grid(row=2, column=0, sticky="w", pady=5)
+                grade_entry = tk.Entry(form_frame, width=30)
+                grade_entry.grid(row=2, column=1, pady=5, padx=(10, 0))
+                grade_entry.insert(0, current_values[2])
+                entry_widgets['grade'] = grade_entry
 
             button_frame = tk.Frame(edit_window, pady=10)
             button_frame.pack(fill="x")
 
             save_button = tk.Button(button_frame, text="Сохранить",
                                     command=lambda: self.save_edited_row(edit_window, selected_item, entry_widgets,
-                                                                         tree, original_data))
+                                                                         tree))
             save_button.pack(side="left", padx=10)
 
             cancel_button = tk.Button(button_frame, text="Отмена",
@@ -850,24 +1014,27 @@ class SchoolApp:
 
     # ДОБАВЛЯЕМ В КЛАСС SchoolApp:
 
-    def refresh_data(self):
+    def refresh_data(self, table_type=None):
         """Обновление данных из БД"""
-        if self.current_table == "teachers":
-            self.teachers_data = self.data_manager.get_all_teachers()
-            for item in self.teachers_tree.get_children():
-                self.teachers_tree.delete(item)
-            for teacher in self.teachers_data:
-                self.teachers_tree.insert("", "end", values=teacher)
-            self.original_teachers_data = self.teachers_data.copy()
-        else:
-            self.students_data = self.data_manager.get_all_students()
-            for item in self.students_tree.get_children():
-                self.students_tree.delete(item)
-            for student in self.students_data:
-                self.students_tree.insert("", "end", values=student)
-            self.original_students_data = self.students_data.copy()
+        table = table_type or self.current_table
 
-    def save_edited_row(self, edit_window, selected_item, entry_widgets, tree, original_data):
+        if table == "teachers":
+            self.teachers_data = self.data_manager.get_all_teachers()
+            self.original_teachers_data = [row.copy() for row in self.teachers_data]
+            self.data_source["teachers"] = "database"
+            self._populate_tree(self.teachers_tree, self.teachers_data)
+        elif table == "students":
+            self.students_data = self.data_manager.get_all_students()
+            self.original_students_data = [row.copy() for row in self.students_data]
+            self.data_source["students"] = "database"
+            self._populate_tree(self.students_tree, self.students_data)
+        else:
+            self.grades_data = self.data_manager.get_all_grades()
+            self.original_grades_data = [row.copy() for row in self.grades_data]
+            self.data_source["grades"] = "database"
+            self._populate_tree(self.grades_tree, self.grades_data)
+
+    def save_edited_row(self, edit_window, selected_item, entry_widgets, tree):
         """Сохранение отредактированных данных В БД"""
         try:
             if self.current_table == "teachers":
@@ -878,27 +1045,53 @@ class SchoolApp:
                 if not new_fio:
                     raise EmptySearchError("Поле 'ФИО' не может быть пустым")
 
-                # Получаем старые данные для удаления
-                old_values = tree.item(selected_item, 'values')
-                old_fio = old_values[0]
-
-                # Обновляем в БД
-                success = self.data_manager.update_teacher_gui(old_fio, new_fio, new_subject, new_classes)
-                if success:
+                if self.data_source["teachers"] == "database":
+                    teacher_id = int(selected_item)
+                    success = self.data_manager.update_teacher_gui(teacher_id, new_fio, new_subject, new_classes)
+                    if not success:
+                        raise FileOperationError("Не удалось обновить запись учителя")
+                    self.refresh_data("teachers")
+                else:
                     new_values = (new_fio, new_subject, new_classes)
                     tree.item(selected_item, values=new_values)
-                    self.refresh_data()  # Обновляем данные из БД
+                    self._sync_table_from_tree("teachers")
 
-            else:
+            elif self.current_table == "students":
                 new_fio = entry_widgets['fio'].get().strip()
                 new_class = entry_widgets['class'].get().strip()
 
                 if not new_fio:
                     raise EmptySearchError("Поле 'ФИО' не может быть пустым")
 
-                # Для студентов просто обновляем в дереве
-                new_values = (new_fio, new_class)
-                tree.item(selected_item, values=new_values)
+                if self.data_source["students"] == "database":
+                    student_id = int(selected_item)
+                    success = self.data_manager.update_student_gui(student_id, new_fio, new_class)
+                    if not success:
+                        raise FileOperationError("Не удалось обновить запись ученика")
+                    self.refresh_data("students")
+                else:
+                    new_values = (new_fio, new_class)
+                    tree.item(selected_item, values=new_values)
+                    self._sync_table_from_tree("students")
+
+            else:
+                new_fio = entry_widgets['fio'].get().strip()
+                new_subject = entry_widgets['subject'].get().strip()
+                new_grade = entry_widgets['grade'].get().strip()
+
+                if not new_fio or not new_subject or not new_grade:
+                    raise EmptySearchError("Все поля должны быть заполнены")
+
+                if self.data_source["grades"] == "database":
+                    grade_id = int(selected_item)
+                    success = self.data_manager.update_grade_gui(grade_id, new_fio, new_subject, new_grade)
+                    if not success:
+                        raise FileOperationError("Не удалось обновить запись об оценке")
+                    self.refresh_data("grades")
+                else:
+                    new_values = (new_fio, new_subject, new_grade)
+                    tree.item(selected_item, values=new_values)
+                    self._sync_table_from_tree("grades")
 
             edit_window.destroy()
             messagebox.showinfo("Успех", "Данные успешно обновлены")
@@ -911,22 +1104,8 @@ class SchoolApp:
     def on_edit_click(self, _):
         """Обработчик событий для кнопки "Редактировать"""
         try:
-            if not self.current_file:
-                raise NoFileOpen("Файл не открыт. Нечего редактировать.")
-
-            if self.current_table == "teachers":
-                selected_item = self.teachers_tree.selection()
-                if not selected_item:
-                    raise NoDataForEdit("Выберите запись для редактирования")
-            else:
-                selected_item = self.students_tree.selection()
-                if not selected_item:
-                    raise NoDataForEdit("Выберите запись для редактирования")
-
             self.edit_selected_row()
 
-        except NoFileOpen as e:
-            messagebox.showerror("Ошибка редактирования", str(e))
         except NoDataForEdit as e:
             messagebox.showwarning("Редактирование", str(e))
         except FileOperationError as e:
@@ -937,36 +1116,27 @@ class SchoolApp:
     def on_delete_click(self, _):
         """Обработчик событий для кнопки "Удалить"""
         try:
-            if not self.current_file:
-                raise NoFileOpen("Файл не открыт. Нечего удалять.")
-
             if self.current_table == "teachers":
                 selected_item = self.teachers_tree.selection()
                 if not selected_item:
                     messagebox.showwarning("Удаление", "Выберите запись для удаления")
                     return
-                for item in selected_item:
-                    self.teachers_tree.delete(item)
-                self.original_teachers_data = []
-                for item in self.teachers_tree.get_children():
-                    self.original_teachers_data.append(
-                        [self.teachers_tree.set(item, col) for col in self.teachers_tree["columns"]])
-            else:
+                self._handle_delete(selected_item)
+            elif self.current_table == "students":
                 selected_item = self.students_tree.selection()
                 if not selected_item:
                     messagebox.showwarning("Удаление", "Выберите запись для удаления")
                     return
-                for item in selected_item:
-                    self.students_tree.delete(item)
-                self.original_students_data = []
-                for item in self.students_tree.get_children():
-                    self.original_students_data.append(
-                        [self.students_tree.set(item, col) for col in self.students_tree["columns"]])
+                self._handle_delete(selected_item)
+            else:
+                selected_item = self.grades_tree.selection()
+                if not selected_item:
+                    messagebox.showwarning("Удаление", "Выберите запись для удаления")
+                    return
+                self._handle_delete(selected_item)
 
             messagebox.showinfo("Удаление", "Запись успешно удалена")
 
-        except NoFileOpen as e:
-            messagebox.showerror("Ошибка удаления", str(e))
         except FileOperationError as e:
             messagebox.showerror("Ошибка операции с файлом", str(e))
         except Exception as e:
@@ -986,7 +1156,7 @@ class SchoolApp:
         self.table_var = tk.StringVar(value="Учителя")
         self.table_combo = ttk.Combobox(control_frame,
                                         textvariable=self.table_var,
-                                        values=["Учителя", "Ученики"],
+                                        values=["Учителя", "Ученики", "Оценки"],
                                         state="readonly",
                                         width=12)
         self.table_combo.pack(side="left", padx=(0, 20))
@@ -1029,21 +1199,100 @@ class SchoolApp:
         except Exception as e:
             messagebox.showerror("Ошибка поиска", f"Произошла ошибка при поиске: {str(e)}")
 
-    def perform_search(self, search_term):
-        """Выполняет поиск по таблице"""
+    def _get_tree_and_data(self):
+        """Возвращает дерево и набор исходных данных для текущей таблицы"""
         if self.current_table == "teachers":
-            tree = self.teachers_tree
-            data = self.original_teachers_data
+            return self.teachers_tree, self.original_teachers_data
+        elif self.current_table == "students":
+            return self.students_tree, self.original_students_data
         else:
-            tree = self.students_tree
-            data = self.original_students_data
+            return self.grades_tree, self.original_grades_data
 
+    def _populate_tree(self, tree, data_rows):
+        """Заполняет дерево указанными строками"""
         for item in tree.get_children():
             tree.delete(item)
 
-        for item in data:
-            if any(search_term.lower() in str(field).lower() for field in item):
-                tree.insert("", "end", values=item)
+        for row in data_rows:
+            row_id = row.get("id")
+            if row_id is not None:
+                tree.insert("", "end", iid=str(row_id), values=row["values"])
+            else:
+                tree.insert("", "end", values=row["values"])
+
+    def _sync_table_from_tree(self, table):
+        """Обновляет кэшированные данные таблицы из Treeview"""
+        if table == "teachers":
+            tree = self.teachers_tree
+            rows = [{"id": None, "values": tree.item(item, 'values')} for item in tree.get_children()]
+            self.teachers_data = rows
+            self.original_teachers_data = [row.copy() for row in rows]
+        elif table == "students":
+            tree = self.students_tree
+            rows = [{"id": None, "values": tree.item(item, 'values')} for item in tree.get_children()]
+            self.students_data = rows
+            self.original_students_data = [row.copy() for row in rows]
+        else:
+            tree = self.grades_tree
+            rows = [{"id": None, "student_id": None, "values": tree.item(item, 'values')} for item in tree.get_children()]
+            self.grades_data = rows
+            self.original_grades_data = [row.copy() for row in rows]
+
+    def _handle_delete(self, selected_items):
+        """Удаляет записи в текущей таблице с учетом источника данных"""
+        if self.current_table == "teachers":
+            tree = self.teachers_tree
+            source = self.data_source["teachers"]
+            if source == "database":
+                for item in selected_items:
+                    success = self.data_manager.delete_teacher_gui(int(item))
+                    if not success:
+                        raise FileOperationError("Не удалось удалить запись учителя")
+                self.refresh_data("teachers")
+            else:
+                for item in selected_items:
+                    tree.delete(item)
+                self._sync_table_from_tree("teachers")
+
+        elif self.current_table == "students":
+            tree = self.students_tree
+            source = self.data_source["students"]
+            if source == "database":
+                for item in selected_items:
+                    success = self.data_manager.delete_student_gui(int(item))
+                    if not success:
+                        raise FileOperationError("Не удалось удалить запись ученика")
+                self.refresh_data("students")
+            else:
+                for item in selected_items:
+                    tree.delete(item)
+                self._sync_table_from_tree("students")
+
+        else:
+            tree = self.grades_tree
+            source = self.data_source["grades"]
+            if source == "database":
+                for item in selected_items:
+                    success = self.data_manager.delete_grade_gui(int(item))
+                    if not success:
+                        raise FileOperationError("Не удалось удалить запись об оценке")
+                self.refresh_data("grades")
+            else:
+                for item in selected_items:
+                    tree.delete(item)
+                self._sync_table_from_tree("grades")
+
+    def perform_search(self, search_term):
+        """Выполняет поиск по таблице"""
+        tree, data = self._get_tree_and_data()
+        filtered = []
+        search_term_lower = search_term.lower()
+
+        for row in data:
+            if any(search_term_lower in str(field).lower() for field in row["values"]):
+                filtered.append(row)
+
+        self._populate_tree(tree, filtered)
 
     def on_search(self, event):
         """Обработчик поиска по таблице при вводе текста"""
@@ -1064,16 +1313,21 @@ class SchoolApp:
 
     def show_table(self, table_type):
         """Переключает отображение между таблицами учителей и учеников"""
+        for frame in [self.teachers_frame, self.students_frame, self.grades_frame]:
+            frame.pack_forget()
+
         if table_type == "teachers":
-            self.students_frame.pack_forget()
             self.teachers_frame.pack(fill="both", expand=True)
             self.current_table = "teachers"
             self.update_sort_options(self.teachers_sort_options)
-        else:
-            self.teachers_frame.pack_forget()
+        elif table_type == "students":
             self.students_frame.pack(fill="both", expand=True)
             self.current_table = "students"
             self.update_sort_options(self.students_sort_options)
+        else:
+            self.grades_frame.pack(fill="both", expand=True)
+            self.current_table = "grades"
+            self.update_sort_options(self.grades_sort_options)
 
         self.current_file = None
 
@@ -1090,8 +1344,10 @@ class SchoolApp:
         selection = self.table_var.get()
         if selection == "Учителя":
             self.show_table("teachers")
-        else:
+        elif selection == "Ученики":
             self.show_table("students")
+        else:
+            self.show_table("grades")
         self.reset_filters()
 
     def on_sort_change(self, _):
@@ -1112,12 +1368,20 @@ class SchoolApp:
                 column_index = 1
             else:
                 column_index = 2
-        else:
+        elif self.current_table == "students":
             tree = self.students_tree
             if sort_by == "ФИО":
                 column_index = 0
             else:
                 column_index = 1
+        else:
+            tree = self.grades_tree
+            if sort_by == "ФИО":
+                column_index = 0
+            elif sort_by == "Предмет":
+                column_index = 1
+            else:
+                column_index = 2
 
         self.sort_treeview(tree, column_index)
 
@@ -1178,6 +1442,12 @@ class SchoolApp:
         elif self.current_table == "teachers" and column_index == 2:
             return self.parse_teacher_classes(value)
 
+        elif self.current_table == "grades" and column_index == 2:
+            try:
+                return (int(value),)
+            except (TypeError, ValueError):
+                return (value_str,)
+
         else:
             return (value_str,)
 
@@ -1192,9 +1462,14 @@ class SchoolApp:
         else:
             column_index = column
 
+        columns = tree['columns']
+        if column_index < 0 or column_index >= len(columns):
+            return
+        column_id = columns[column_index]
+
         items = []
         for item in tree.get_children(''):
-            value = tree.set(item, column_index)
+            value = tree.set(item, column_id)
             sort_key = self.get_sort_key(value, column_index)
             items.append((sort_key, item))
 
@@ -1209,25 +1484,17 @@ class SchoolApp:
     def reset_filters(self):
         """Сбрасывает все фильтры и сортировку к исходному состоянию"""
         self.search_var.set("")
-
-        if self.current_table == "teachers":
-            tree = self.teachers_tree
-            data = self.original_teachers_data
-        else:
-            tree = self.students_tree
-            data = self.original_students_data
-
-        for item in tree.get_children():
-            tree.delete(item)
-
-        for item in data:
-            tree.insert("", "end", values=item)
+        tree, data = self._get_tree_and_data()
+        self._populate_tree(tree, data)
 
         if self.current_table == "teachers" and self.teachers_sort_options:
             self.sort_var.set(self.teachers_sort_options[0])
             self.apply_sorting()
         elif self.current_table == "students" and self.students_sort_options:
             self.sort_var.set(self.students_sort_options[0])
+            self.apply_sorting()
+        elif self.current_table == "grades" and self.grades_sort_options:
+            self.sort_var.set(self.grades_sort_options[0])
             self.apply_sorting()
 
     def setup_report_generator(self):
@@ -1238,11 +1505,14 @@ class SchoolApp:
         """Генерация PDF отчета"""
         try:
             if self.current_table == "teachers":
-                data = self.original_teachers_data
+                data = [row["values"] for row in self.original_teachers_data]
                 report_type = "Учителя"
-            else:
-                data = self.original_students_data
+            elif self.current_table == "students":
+                data = [row["values"] for row in self.original_students_data]
                 report_type = "Ученики"
+            else:
+                data = [row["values"] for row in self.original_grades_data]
+                report_type = "Оценки"
 
             if not data:
                 messagebox.showwarning("Генерация отчета", "Нет данных для отчета")
@@ -1279,4 +1549,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = SchoolApp(root)
     root.geometry("700x600")
+    root.mainloop()
     root.mainloop()
