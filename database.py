@@ -131,7 +131,7 @@ class SchoolDatabase:
             FROM students WHERE id IN (
                 SELECT student_id FROM grades
                 GROUP BY student_id
-                HAVING AVG(grade) < 3
+                HAVING AVG(grade) < 3.5
                 
                 )
             """)
