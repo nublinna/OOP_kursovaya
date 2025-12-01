@@ -1,3 +1,5 @@
+"""Работа с PostgreSQL: создание таблиц и простые CRUD операции."""
+
 import os
 import psycopg2
 

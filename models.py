@@ -1,3 +1,5 @@
+"""Простые модели Teacher, Student и GradeRecord для GUI."""
+
 from abc import ABC, abstractmethod
 from typing import Iterable, List
 

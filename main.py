@@ -23,7 +23,7 @@ from models import Teacher, Student, GradeRecord
 
 
 class SchoolDataManager:
-    """Класс для интеграции БД с GUI - соответствует требованиям ООП"""
+    """Готовит данные из базы для графического интерфейса."""
 
     def __init__(self):
         self.db = SchoolDatabase()
@@ -152,6 +152,7 @@ class SchoolDataManager:
         return last_name, first_name, middle_name
 
     def _split_classes(self, text):
+        """Разбивает строку с классами на список."""
         return [cls.strip() for cls in text.split(",") if cls.strip()]
 
     def _format_fio(self, last_name, first_name, middle_name):
@@ -276,6 +277,7 @@ class SchoolDataManager:
             return False
 
     def import_teachers(self, teachers_rows):
+        """Импортирует учителей из загруженного файла в базу."""
         imported = 0
         for row in teachers_rows:
             try:
@@ -293,6 +295,7 @@ class SchoolDataManager:
         return imported
 
     def import_students(self, student_rows):
+        """Импортирует учеников из загруженного файла."""
         imported = 0
         for row in student_rows:
             try:
@@ -306,6 +309,7 @@ class SchoolDataManager:
         return imported
 
     def import_grades(self, grade_rows):
+        """Импортирует оценки из загруженного файла."""
         imported = 0
         for row in grade_rows:
             if len(row) < 3:
@@ -391,7 +395,7 @@ class SchoolDataManager:
             return False
 
     def get_academic_report(self):
-        """Получение отчета об успеваемости - соответствует заданию"""
+        """Возвращает словарь с данными по отличникам и двоечникам."""
         try:
             return self.db.get_grades()
         except Exception as e:
@@ -441,7 +445,7 @@ class NoImportFileError(Exception):
 
 
 class ReportGenerator:
-    """Класс для генерации отчетов в PDF формате"""
+    """Создаёт PDF-отчёт на основе HTML-шаблона."""
 
     def __init__(self):
         if not os.path.exists('templates'):
@@ -505,10 +509,7 @@ class ReportGenerator:
 
 
 class SchoolApp:
-    """
-    Основной класс приложения.
-    Здесь описаны все окна, кнопки и обработчики.
-    """
+    """Главное окно приложения: таблицы, кнопки и вся логика GUI."""
 
     def __init__(self, root):
         """Создаёт окно, настраивает виджеты и загружает данные."""
@@ -886,7 +887,7 @@ class SchoolApp:
             raise XMLProcessingError(f"Ошибка при загрузке XML файла: {str(e)}")
 
     def _apply_loaded_rows(self, rows):
-        """Применяет загруженные строки к текущей таблице"""
+        """Применяет загруженные строки к текущей таблице."""
         normalized = []
 
         if self.current_table == "teachers":
@@ -908,7 +909,7 @@ class SchoolApp:
             self._set_table_data_from_rows("grades", normalized)
 
     def _set_table_data_from_rows(self, table, rows):
-        """Обновляет представление таблицы данными из списка кортежей"""
+        """Обновляет Treeview списком строк."""
         data_entries = []
         for row in rows:
             entry = {"id": None, "values": tuple(row)}
@@ -1567,7 +1568,7 @@ class SchoolApp:
             messagebox.showerror("Ошибка поиска", f"Произошла ошибка при поиске: {str(e)}")
 
     def _get_tree_and_data(self):
-        """Возвращает дерево и набор исходных данных для текущей таблицы"""
+        """Возвращает виджет Treeview и копию исходных данных."""
         if self.current_table == "teachers":
             return self.teachers_tree, self.original_teachers_data
         elif self.current_table == "students":
@@ -1576,7 +1577,7 @@ class SchoolApp:
             return self.grades_tree, self.original_grades_data
 
     def _populate_tree(self, tree, data_rows):
-        """Заполняет дерево указанными строками"""
+        """Перерисовывает содержимое Treeview."""
         for item in tree.get_children():
             tree.delete(item)
 
@@ -1588,7 +1589,7 @@ class SchoolApp:
                 tree.insert("", "end", values=row["values"])
 
     def _sync_table_from_tree(self, table):
-        """Обновляет кэшированные данные таблицы из Treeview"""
+        """Сохраняет текущие значения из Treeview в кэш."""
         if table == "teachers":
             tree = self.teachers_tree
             rows = [{"id": None, "values": tree.item(item, 'values')} for item in tree.get_children()]
@@ -1606,7 +1607,7 @@ class SchoolApp:
             self.original_grades_data = [row.copy() for row in rows]
 
     def _handle_delete(self, selected_items):
-        """Удаляет записи в текущей таблице с учетом источника данных"""
+        """Удаляет строки из таблицы и БД (если нужно)."""
         if self.current_table == "teachers":
             tree = self.teachers_tree
             source = self.data_source["teachers"]

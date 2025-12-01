@@ -1,5 +1,7 @@
 """Генератор XML для учителей, учеников и оценок."""
 
+"""Генерирует наборы XML-файлов для импорта в приложение."""
+
 import random
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
