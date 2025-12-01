@@ -603,15 +603,9 @@ class SchoolApp:
         """
         Создание верхней панели с кнопками
         """
-        top_frame = tk.Frame(self.root, bg='#d0d0d0', height=80)
+        top_frame = tk.Frame(self.root, bg='#d0d0d0', height=70)
         top_frame.pack(fill="x", padx=5, pady=5)
         top_frame.pack_propagate(False)
-
-        main_logo = tk.Label(top_frame, text="[ЛОГОТИП\nШКОЛЫ]",
-                             bg='#b0b0b0', fg='#555555',
-                             width=12, height=4,
-                             relief='sunken', font=('Arial', 9, 'bold'))
-        main_logo.pack(side="left", padx=5, pady=5)
 
         buttons_frame = tk.Frame(top_frame, bg='#d0d0d0')
         buttons_frame.pack(side="right", padx=10, pady=10)
@@ -1834,6 +1828,6 @@ class SchoolApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = SchoolApp(root)
-    root.geometry("700x600")
+    root.geometry("950x650")
     root.mainloop()
     root.mainloop()
