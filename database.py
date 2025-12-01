@@ -236,6 +236,22 @@ class SchoolDatabase:
         result = self.DB_CURSOR.fetchone()
         return result[0] if result else None
 
+    def teacher_exists(self, last_name, first_name, middle_name, subject):
+        query = """
+            SELECT id FROM teachers
+            WHERE last_name = %s
+              AND first_name = %s
+              AND COALESCE(middle_name, '') = %s
+              AND subject = %s
+            LIMIT 1
+        """
+        self.DB_CURSOR.execute(query, (last_name, first_name, middle_name, subject))
+        return self.DB_CURSOR.fetchone() is not None
+
+    def clear_teachers(self):
+        self.DB_CURSOR.execute("DELETE FROM teachers")
+        self.DB_CONNECTION.commit()
+
     def get_subject_list(self):
         self.DB_CURSOR.execute("""
             SELECT DISTINCT subject

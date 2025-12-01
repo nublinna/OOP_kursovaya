@@ -298,6 +298,10 @@ class SchoolDataManager:
                 continue
             last_name, first_name, middle_name = self._parse_fio(fio)
             classes = [cls.strip() for cls in classes_str.split(",") if cls.strip()]
+
+            if self.db.teacher_exists(last_name, first_name, middle_name, subject):
+                continue
+
             self.db.add_teacher(last_name, first_name, subject, classes, middle_name)
             imported += 1
         return imported
