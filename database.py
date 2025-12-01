@@ -13,6 +13,7 @@ class SchoolDatabase:
         self.DB_CONNECTION = psycopg2.connect(**db_config)
         self.DB_CURSOR = self.DB_CONNECTION.cursor()
         self.__create_tables()
+        self.reset_all_sequences()
 
     def _prepare_array(self, values):
         """Преобразует разные входные форматы в список строк для TEXT[]"""
@@ -250,7 +251,23 @@ class SchoolDatabase:
 
     def clear_teachers(self):
         self.DB_CURSOR.execute("DELETE FROM teachers")
+        self.reset_sequence("teachers")
         self.DB_CONNECTION.commit()
+
+    def reset_sequence(self, table_name):
+        query = f"""
+            SELECT setval(
+                pg_get_serial_sequence('{table_name}', 'id'),
+                COALESCE((SELECT MAX(id) FROM {table_name}), 0) + 1,
+                false
+            )
+        """
+        self.DB_CURSOR.execute(query)
+        self.DB_CONNECTION.commit()
+
+    def reset_all_sequences(self):
+        for table in ("students", "teachers", "grades"):
+            self.reset_sequence(table)
 
     def get_subject_list(self):
         self.DB_CURSOR.execute("""
