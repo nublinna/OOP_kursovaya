@@ -289,6 +289,50 @@ class SchoolDataManager:
             print(f"Ошибка добавления ученика: {e}")
             return False
 
+    def import_teachers(self, teachers_rows):
+        imported = 0
+        for row in teachers_rows:
+            try:
+                fio, subject, classes_str = row
+            except ValueError:
+                continue
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            classes = [cls.strip() for cls in classes_str.split(",") if cls.strip()]
+            self.db.add_teacher(last_name, first_name, subject, classes, middle_name)
+            imported += 1
+        return imported
+
+    def import_students(self, student_rows):
+        imported = 0
+        for row in student_rows:
+            try:
+                fio, class_str = row
+            except ValueError:
+                continue
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            classes = [cls.strip() for cls in class_str.split(",") if cls.strip()]
+            self.db.add_student(last_name, first_name, classes, middle_name)
+            imported += 1
+        return imported
+
+    def import_grades(self, grade_rows):
+        imported = 0
+        for row in grade_rows:
+            if len(row) < 3:
+                continue
+            fio, subject, grade_value = row
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            student_id = self.db.find_student_id(last_name, first_name, middle_name)
+            if not student_id:
+                student_id = self.db.add_student(last_name, first_name, [], middle_name)
+            try:
+                grade_int = int(grade_value)
+            except ValueError:
+                continue
+            self.db.add_grade(student_id, subject, grade_int)
+            imported += 1
+        return imported
+
     def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str):
         """Обновление учителя из GUI"""
         try:
@@ -401,6 +445,11 @@ class NoDataForEdit(Exception):
     pass
 
 
+class NoImportFileError(Exception):
+    """Исключение вызывается, когда нет файла для импорта в БД"""
+    pass
+
+
 class ReportGenerator:
     """Класс для генерации отчетов в PDF формате"""
 
@@ -482,6 +531,7 @@ class SchoolApp:
             "students": "database",
             "grades": "database"
         }
+        self.loaded_import_data = {"teachers": [], "students": [], "grades": []}
         self.info_window = None
 
         self.data_manager = SchoolDataManager()
@@ -632,6 +682,7 @@ class SchoolApp:
             "Сохранить",
             "Открыть файл",
             "Создать файл",
+            "Импорт в БД",
             "Редактировать",
             "Удалить"
         ]
@@ -642,6 +693,7 @@ class SchoolApp:
             "Сохранить": "save_button.png",
             "Открыть файл": "open_file.png",
             "Создать файл": "new_file.png",
+            "Импорт в БД": "open_file.png",
             "Редактировать": "edit_icon.png",
             "Удалить": "delete_icon.png"
         }
@@ -653,6 +705,8 @@ class SchoolApp:
                 click_handler = self.on_open_click
             elif text == "Создать файл":
                 click_handler = self.on_new_click
+            elif text == "Импорт в БД":
+                click_handler = self.on_import_to_db_click
             elif text == "Редактировать":
                 click_handler = self.on_edit_click
             elif text == "Удалить":
@@ -800,27 +854,11 @@ class SchoolApp:
         try:
             with open(filename, 'r', encoding='utf-8') as file:
                 reader = csv.reader(file)
-                next(reader, None)
+                header = next(reader, None)
+                rows = [row for row in reader]
 
-                if self.current_table == "teachers":
-                    rows = [{"id": None, "values": tuple(row)} for row in reader if len(row) == 3]
-                    self.teachers_data = rows
-                    self.original_teachers_data = [r.copy() for r in rows]
-                    self.data_source["teachers"] = "file"
-                    self._populate_tree(self.teachers_tree, self.teachers_data)
-                elif self.current_table == "students":
-                    rows = [{"id": None, "values": tuple(row)} for row in reader if len(row) == 2]
-                    self.students_data = rows
-                    self.original_students_data = [r.copy() for r in rows]
-                    self.data_source["students"] = "file"
-                    self._populate_tree(self.students_tree, self.students_data)
-                else:
-                    rows = [{"id": None, "student_id": None, "values": tuple(row)} for row in reader if len(row) == 3]
-                    self.grades_data = rows
-                    self.original_grades_data = [r.copy() for r in rows]
-                    self.data_source["grades"] = "file"
-                    self._populate_tree(self.grades_tree, self.grades_data)
-            return True
+                self._apply_loaded_rows(rows)
+                return True
         except Exception as e:
             raise FileOperationError(f"Ошибка при загрузке CSV файла: {str(e)}")
 
@@ -831,50 +869,109 @@ class SchoolApp:
             root = tree_xml.getroot()
 
             if self.current_table == "teachers":
-                rows = []
                 teachers_element = root.find("teachers")
-                if teachers_element is not None:
-                    for teacher_element in teachers_element.findall("teacher"):
-                        fio = teacher_element.get("fio", "")
-                        subject = teacher_element.get("subject", "")
-                        classes = teacher_element.get("classes", "")
-                        rows.append({"id": None, "values": (fio, subject, classes)})
-
-                self.teachers_data = rows
-                self.original_teachers_data = [row.copy() for row in rows]
-                self.data_source["teachers"] = "file"
-                self._populate_tree(self.teachers_tree, self.teachers_data)
+                rows = [
+                    (teacher_element.get("fio", ""), teacher_element.get("subject", ""), teacher_element.get("classes", ""))
+                    for teacher_element in teachers_element.findall("teacher")
+                ] if teachers_element is not None else []
+                self._apply_loaded_rows(rows)
             elif self.current_table == "students":
-                rows = []
                 students_element = root.find("students")
-                if students_element is not None:
-                    for student_element in students_element.findall("student"):
-                        fio = student_element.get("fio", "")
-                        student_class = student_element.get("class", "")
-                        rows.append({"id": None, "values": (fio, student_class)})
-
-                self.students_data = rows
-                self.original_students_data = [row.copy() for row in rows]
-                self.data_source["students"] = "file"
-                self._populate_tree(self.students_tree, self.students_data)
+                rows = [
+                    (student_element.get("fio", ""), student_element.get("class", ""))
+                    for student_element in students_element.findall("student")
+                ] if students_element is not None else []
+                self._apply_loaded_rows(rows)
             else:
-                rows = []
                 grades_element = root.find("grades")
-                if grades_element is not None:
-                    for grade_element in grades_element.findall("grade"):
-                        fio = grade_element.get("fio", "")
-                        subject = grade_element.get("subject", "")
-                        grade_value = grade_element.get("value", "")
-                        rows.append({"id": None, "student_id": None, "values": (fio, subject, grade_value)})
-
-                self.grades_data = rows
-                self.original_grades_data = [row.copy() for row in rows]
-                self.data_source["grades"] = "file"
-                self._populate_tree(self.grades_tree, self.grades_data)
+                rows = [
+                    (grade_element.get("fio", ""), grade_element.get("subject", ""), grade_element.get("value", ""))
+                    for grade_element in grades_element.findall("grade")
+                ] if grades_element is not None else []
+                self._apply_loaded_rows(rows)
 
             return True
         except Exception as e:
             raise XMLProcessingError(f"Ошибка при загрузке XML файла: {str(e)}")
+
+    def _apply_loaded_rows(self, rows):
+        """Применяет загруженные строки к текущей таблице"""
+        normalized = []
+
+        if self.current_table == "teachers":
+            for row in rows:
+                if len(row) >= 3:
+                    normalized.append((row[0], row[1], row[2]))
+            self._set_table_data_from_rows("teachers", normalized)
+
+        elif self.current_table == "students":
+            for row in rows:
+                if len(row) >= 2:
+                    normalized.append((row[0], row[1]))
+            self._set_table_data_from_rows("students", normalized)
+
+        else:
+            for row in rows:
+                if len(row) >= 3:
+                    normalized.append((row[0], row[1], row[2]))
+            self._set_table_data_from_rows("grades", normalized)
+
+    def _set_table_data_from_rows(self, table, rows):
+        """Обновляет представление таблицы данными из списка кортежей"""
+        data_entries = []
+        for row in rows:
+            entry = {"id": None, "values": tuple(row)}
+            if table == "grades":
+                entry["student_id"] = None
+            data_entries.append(entry)
+
+        if table == "teachers":
+            self.teachers_data = data_entries
+            self.original_teachers_data = [row.copy() for row in data_entries]
+            self.data_source["teachers"] = "file"
+            self.loaded_import_data["teachers"] = rows
+            self._populate_tree(self.teachers_tree, self.teachers_data)
+        elif table == "students":
+            self.students_data = data_entries
+            self.original_students_data = [row.copy() for row in data_entries]
+            self.data_source["students"] = "file"
+            self.loaded_import_data["students"] = rows
+            self._populate_tree(self.students_tree, self.students_data)
+        else:
+            self.grades_data = data_entries
+            self.original_grades_data = [row.copy() for row in data_entries]
+            self.data_source["grades"] = "file"
+            self.loaded_import_data["grades"] = rows
+            self._populate_tree(self.grades_tree, self.grades_data)
+
+    def on_import_to_db_click(self, _):
+        """Импортирует загруженные данные в БД"""
+        try:
+            imported = self._import_loaded_data_to_db()
+            messagebox.showinfo("Импорт в БД", f"Импортировано записей: {imported}")
+        except NoImportFileError as e:
+            messagebox.showwarning("Импорт в БД", str(e))
+        except Exception as e:
+            messagebox.showerror("Импорт в БД", f"Ошибка импорта: {str(e)}")
+
+    def _import_loaded_data_to_db(self):
+        table = self.current_table
+        if not self.current_file:
+            raise NoImportFileError("Сначала выберите файл для загрузки.")
+        rows = self.loaded_import_data.get(table) or []
+        if not rows:
+            raise NoImportFileError("Сначала загрузите файл для текущей таблицы.")
+
+        if table == "teachers":
+            imported = self.data_manager.import_teachers(rows)
+        elif table == "students":
+            imported = self.data_manager.import_students(rows)
+        else:
+            imported = self.data_manager.import_grades(rows)
+
+        self.refresh_data(table)
+        self.data_source[table] = "database"
+        return imported
 
     def validate_search_input(self, search_term):
         """Проверяет введенный текст для поиска"""
