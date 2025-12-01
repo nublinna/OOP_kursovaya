@@ -603,7 +603,7 @@ class SchoolApp:
         """
         Создание верхней панели с кнопками
         """
-        top_frame = tk.Frame(self.root, bg='#d0d0d0', height=70)
+        top_frame = tk.Frame(self.root, bg='#d0d0d0', height=80)
         top_frame.pack(fill="x", padx=5, pady=5)
         top_frame.pack_propagate(False)
 
@@ -1229,48 +1229,47 @@ class SchoolApp:
         control_frame = tk.Frame(self.root, bg='#f0f0f0')
         control_frame.pack(fill="x", padx=10, pady=5)
 
-        left_controls = tk.Frame(control_frame, bg='#f0f0f0')
-        left_controls.pack(side="left", fill="x", expand=True)
+        top_controls = tk.Frame(control_frame, bg='#f0f0f0')
+        top_controls.pack(fill="x", expand=True)
 
-        right_controls = tk.Frame(control_frame, bg='#f0f0f0')
-        right_controls.pack(side="right")
-
-        tk.Label(left_controls, text="Просмотр:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
+        tk.Label(top_controls, text="Просмотр:", bg='#f0f0f0', font=('Arial', 9)).grid(row=0, column=0, padx=(0, 5), sticky="w")
 
         self.table_var = tk.StringVar(value="Учителя")
-        self.table_combo = ttk.Combobox(left_controls,
+        self.table_combo = ttk.Combobox(top_controls,
                                         textvariable=self.table_var,
                                         values=["Учителя", "Ученики", "Оценки"],
                                         state="readonly",
                                         width=12)
-        self.table_combo.pack(side="left", padx=(0, 20))
+        self.table_combo.grid(row=0, column=1, padx=(0, 20), pady=2, sticky="w")
         self.table_combo.bind('<<ComboboxSelected>>', self.on_table_change)
 
-        tk.Label(left_controls, text="Поиск:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
+        tk.Label(top_controls, text="Поиск:", bg='#f0f0f0', font=('Arial', 9)).grid(row=0, column=2, padx=(0, 5), sticky="w")
 
         self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(left_controls, textvariable=self.search_var, width=20)
-        self.search_entry.pack(side="left", padx=(0, 5))
+        self.search_entry = ttk.Entry(top_controls, textvariable=self.search_var, width=20)
+        self.search_entry.grid(row=0, column=3, padx=(0, 5), pady=2, sticky="w")
         self.search_entry.bind('<KeyRelease>', self.on_search)
 
-        self.search_btn = ttk.Button(left_controls, text="Найти", command=self.on_search_button)
-        self.search_btn.pack(side="left", padx=(5, 0))
+        self.search_btn = ttk.Button(top_controls, text="Найти", command=self.on_search_button)
+        self.search_btn.grid(row=0, column=4, padx=(5, 0), pady=2, sticky="w")
 
-        tk.Label(left_controls, text="Сортировка:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(20, 5))
+        tk.Label(top_controls, text="Сортировка:", bg='#f0f0f0', font=('Arial', 9)).grid(row=0, column=5, padx=(20, 5), sticky="w")
 
         self.sort_var = tk.StringVar()
-        self.sort_combo = ttk.Combobox(left_controls,
+        self.sort_combo = ttk.Combobox(top_controls,
                                        textvariable=self.sort_var,
                                        state="readonly",
                                        width=15)
-        self.sort_combo.pack(side="left", padx=(0, 5))
+        self.sort_combo.grid(row=0, column=6, padx=(0, 5), pady=2, sticky="w")
         self.sort_combo.bind('<<ComboboxSelected>>', self.on_sort_change)
 
-        self.reset_btn = ttk.Button(left_controls, text="Сбросить", command=self.reset_filters)
-        self.reset_btn.pack(side="left", padx=(10, 0))
+        self.reset_btn = ttk.Button(top_controls, text="Сбросить", command=self.reset_filters)
+        self.reset_btn.grid(row=0, column=7, padx=(10, 0), pady=2, sticky="w")
 
-        self.info_btn = ttk.Button(right_controls, text="Инфо для завуча", command=self.open_info_center)
-        self.info_btn.pack(side="right", padx=(0, 5))
+        self.info_btn = ttk.Button(top_controls, text="Инфо для завуча", command=self.open_info_center)
+        self.info_btn.grid(row=0, column=8, padx=(20, 0), pady=2, sticky="e")
+
+        top_controls.columnconfigure(3, weight=1)
 
         return control_frame
 
