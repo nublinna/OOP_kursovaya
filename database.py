@@ -76,13 +76,10 @@ class SchoolDatabase:
                         """
         class_array = self._prepare_array(class_name)
 
-        self.DB_CURSOR.execute(insert_student_query,
-                               (
-                                   last_name,
-                                   first_name,
-                                   middle_name,
-                                   class_array
-                               ))
+        self.DB_CURSOR.execute(
+            insert_student_query,
+            (last_name, first_name, middle_name, class_array)
+        )
         student_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
         return student_id
@@ -161,14 +158,10 @@ class SchoolDatabase:
                                 """
         classes_array = self._prepare_array(classes)
 
-        self.DB_CURSOR.execute(add_teacher_query,
-                               (
-                                   last_name,
-                                   first_name,
-                                   subject,
-                                   classes_array,
-                                   middle_name
-                               ))
+        self.DB_CURSOR.execute(
+            add_teacher_query,
+            (last_name, first_name, middle_name, subject, classes_array)
+        )
         teacher_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
         return teacher_id
@@ -181,8 +174,10 @@ class SchoolDatabase:
                     WHERE id = %s
                 """
         classes_array = self._prepare_array(classes)
-        self.DB_CURSOR.execute(update_teachers_query, (last_name, first_name, subject,
-                                                      classes_array, middle_name, teacher_id))
+        self.DB_CURSOR.execute(
+            update_teachers_query,
+            (last_name, first_name, subject, classes_array, middle_name, teacher_id)
+        )
         self.DB_CONNECTION.commit()
 
     def get_teachers_by_subject(self, subject):
