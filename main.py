@@ -33,9 +33,10 @@ class SchoolDataManager:
     def _setup_initial_data(self):
         """Инициализация начальных данных при первом запуске"""
         try:
-            # Проверяем, есть ли данные в БД, если нет - заполняем демо-данными
-            if self._is_database_empty():
-                self._initialize_demo_data()
+            demo_teachers, demo_students, demo_grades = self._get_demo_data()
+            self._seed_teachers_if_needed(demo_teachers)
+            self._seed_students_if_needed(demo_students)
+            self._seed_grades_if_needed(demo_grades)
         except Exception as e:
             print(f"Ошибка инициализации БД: {e}")
 
@@ -55,9 +56,8 @@ class SchoolDataManager:
         except:
             return True
 
-    def _initialize_demo_data(self):
-        """Заполнение демо-данными согласно требованиям методички"""
-        # Демо-учителя
+    def _get_demo_data(self):
+        """Возвращает наборы демо-данных"""
         demo_teachers = [
             {"last_name": "Иванова", "first_name": "Анна", "middle_name": "Петровна",
              "subject": "Математика", "classes": ["5А", "6Б", "9В"]},
@@ -67,16 +67,6 @@ class SchoolDataManager:
              "subject": "Литература", "classes": ["5А", "6А", "7А", "8А"]},
         ]
 
-        for teacher in demo_teachers:
-            self.db.add_teacher(
-                teacher["last_name"],
-                teacher["first_name"],
-                teacher["subject"],
-                teacher["classes"],
-                teacher["middle_name"]
-            )
-
-        # Демо-ученики
         demo_students = [
             {"last_name": "Алексеев", "first_name": "Александр", "middle_name": "Сергеевич",
              "class_name": ["5А"]},
@@ -88,18 +78,6 @@ class SchoolDataManager:
              "class_name": ["8Б"]},
         ]
 
-        student_ids = {}
-
-        for student in demo_students:
-            student_id = self.db.add_student(
-                student["last_name"],
-                student["first_name"],
-                student["class_name"],
-                student["middle_name"]
-            )
-            fio_key = f"{student['last_name']} {student['first_name']} {student['middle_name']}".strip()
-            student_ids[fio_key] = student_id
-
         demo_grades = [
             ("Алексеев Александр Сергеевич", "Математика", 5),
             ("Борисова Екатерина Игоревна", "Физика", 4),
@@ -107,8 +85,62 @@ class SchoolDataManager:
             ("Григорьева София Андреевна", "Информатика", 5),
         ]
 
+        return demo_teachers, demo_students, demo_grades
+
+    def _get_table_count(self, table_name):
+        """Возвращает количество записей в таблице"""
+        self.db.DB_CURSOR.execute(f"SELECT COUNT(*) FROM {table_name}")
+        return self.db.DB_CURSOR.fetchone()[0]
+
+    def _seed_teachers_if_needed(self, demo_teachers):
+        """Добавляет демо-учителей, если таблица пуста"""
+        if self._get_table_count("teachers") > 0:
+            return
+
+        for teacher in demo_teachers:
+            self.db.add_teacher(
+                teacher["last_name"],
+                teacher["first_name"],
+                teacher["subject"],
+                teacher["classes"],
+                teacher["middle_name"]
+            )
+
+    def _seed_students_if_needed(self, demo_students):
+        """Добавляет демо-учеников, если таблица пуста"""
+        if self._get_table_count("students") > 0:
+            return
+
+        for student in demo_students:
+            self.db.add_student(
+                student["last_name"],
+                student["first_name"],
+                student["class_name"],
+                student["middle_name"]
+            )
+
+    def _build_student_index(self):
+        """Создает словарь ФИО -> id для всех учеников"""
+        self.db.DB_CURSOR.execute(
+            "SELECT id, last_name, first_name, COALESCE(middle_name, '') FROM students"
+        )
+        students = self.db.DB_CURSOR.fetchall()
+        index = {}
+        for student in students:
+            student_id, last_name, first_name, middle_name = student
+            fio = " ".join(list(filter(None, [last_name, first_name, middle_name]))).strip()
+            index[fio] = student_id
+        return index
+
+    def _seed_grades_if_needed(self, demo_grades):
+        """Добавляет демо-оценки, если таблица пуста"""
+        if self._get_table_count("grades") > 0:
+            return
+
+        student_index = self._build_student_index()
+
         for fio, subject, grade in demo_grades:
-            student_id = student_ids.get(fio)
+            student_id = student_index.get(fio)
             if student_id:
                 self.db.add_grade(student_id, subject, grade)
 
