@@ -15,21 +15,23 @@ class SchoolDatabase:
         self.__create_tables()
 
     def _prepare_array(self, values):
+        """Преобразует разные входные форматы в список строк для TEXT[]"""
         if not values:
-            return '{}'
+            return []
+
         if isinstance(values, str):
             cleaned = values.strip()
             if not cleaned:
-                return '{}'
+                return []
             items = [item.strip() for item in cleaned.split(',') if item.strip()]
-        else:
-            items = [str(item).strip() for item in values if str(item).strip()]
+            return items if items else [cleaned]
 
-        if not items:
-            return '{}'
-
-        quoted = [f'"{item.replace("\"", "\\\"")}"' for item in items]
-        return '{' + ','.join(quoted) + '}'
+        result = []
+        for item in values:
+            text = str(item).strip()
+            if text:
+                result.append(text)
+        return result
 
     def __create_tables(self):
         students_table = """
