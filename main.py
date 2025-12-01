@@ -152,6 +152,57 @@ class SchoolDataManager:
         middle_name = parts[2] if len(parts) > 2 else ""
         return last_name, first_name, middle_name
 
+    def _format_fio(self, last_name, first_name, middle_name):
+        return " ".join(part for part in [last_name, first_name, middle_name] if part)
+
+    def get_subject_list(self):
+        try:
+            return self.db.get_subject_list()
+        except Exception as e:
+            print(f"Ошибка получения списка предметов: {e}")
+            return []
+
+    def get_teacher_list(self):
+        try:
+            teachers = self.db.get_teacher_fios()
+            return [self._format_fio(*teacher).strip() for teacher in teachers]
+        except Exception as e:
+            print(f"Ошибка получения списка учителей: {e}")
+            return []
+
+    def get_class_list(self):
+        try:
+            return self.db.get_class_list()
+        except Exception as e:
+            print(f"Ошибка получения списка классов: {e}")
+            return []
+
+    def get_teachers_by_subject(self, subject):
+        try:
+            teachers = self.db.get_teachers_by_subject(subject)
+            return [self._format_fio(*teacher).strip() for teacher in teachers]
+        except Exception as e:
+            print(f"Ошибка запроса учителей по предмету: {e}")
+            return []
+
+    def get_teacher_classes(self, fio):
+        try:
+            last_name, first_name, middle_name = self._parse_fio(fio)
+            classes = self.db.get_teacher_classes_by_name(last_name, first_name, middle_name)
+            return classes if classes else []
+        except Exception as e:
+            print(f"Ошибка получения классов учителя: {e}")
+            return []
+
+    def get_student_count(self, class_name=None):
+        try:
+            if class_name:
+                class_name = class_name.strip()
+            return self.db.get_students_count(class_name if class_name else None)
+        except Exception as e:
+            print(f"Ошибка получения количества учеников: {e}")
+            return 0
+
     def get_all_teachers(self):
         """Получение всех учителей в формате для GUI"""
         try:
@@ -431,6 +482,7 @@ class SchoolApp:
             "students": "database",
             "grades": "database"
         }
+        self.info_window = None
 
         self.data_manager = SchoolDataManager()
 
@@ -1217,7 +1269,203 @@ class SchoolApp:
         self.reset_btn = ttk.Button(control_frame, text="Сбросить", command=self.reset_filters)
         self.reset_btn.pack(side="left", padx=(10, 0))
 
+        self.info_btn = ttk.Button(control_frame, text="Инфо для завуча", command=self.open_info_center)
+        self.info_btn.pack(side="right", padx=(0, 5))
+
         return control_frame
+
+    def open_info_center(self):
+        """Открывает окно с дополнительной информацией для завуча"""
+        if self.info_window and tk.Toplevel.winfo_exists(self.info_window):
+            self.info_window.lift()
+            return
+
+        self.info_window = tk.Toplevel(self.root)
+        self.info_window.title("Информация для завуча")
+        self.info_window.geometry("560x520")
+        self.info_window.transient(self.root)
+        self.info_window.grab_set()
+        self.info_window.protocol("WM_DELETE_WINDOW", self._close_info_center)
+
+        notebook = ttk.Notebook(self.info_window)
+        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self._build_subject_tab(notebook)
+        self._build_teacher_tab(notebook)
+        self._build_students_tab(notebook)
+        self._build_performance_tab(notebook)
+
+        refresh_btn = ttk.Button(self.info_window, text="Обновить данные", command=self._refresh_info_center_data)
+        refresh_btn.pack(pady=(0, 10))
+
+        self._refresh_info_center_data()
+
+    def _close_info_center(self):
+        if self.info_window and tk.Toplevel.winfo_exists(self.info_window):
+            self.info_window.destroy()
+        self.info_window = None
+
+    def _build_subject_tab(self, notebook):
+        frame = ttk.Frame(notebook, padding=10)
+        notebook.add(frame, text="Предметы")
+
+        ttk.Label(frame, text="Предмет:").grid(row=0, column=0, sticky="w")
+        self.subject_query_var = tk.StringVar()
+        self.subject_combo = ttk.Combobox(frame, textvariable=self.subject_query_var, width=35)
+        self.subject_combo.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        subject_btn = ttk.Button(frame, text="Показать", command=self._handle_subject_lookup)
+        subject_btn.grid(row=0, column=2, padx=5, pady=5)
+
+        self.subject_result_box = tk.Listbox(frame, height=8)
+        self.subject_result_box.grid(row=1, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
+
+        frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(1, weight=1)
+
+    def _build_teacher_tab(self, notebook):
+        frame = ttk.Frame(notebook, padding=10)
+        notebook.add(frame, text="Учителя")
+
+        ttk.Label(frame, text="Учитель:").grid(row=0, column=0, sticky="w")
+        self.teacher_query_var = tk.StringVar()
+        self.teacher_combo = ttk.Combobox(frame, textvariable=self.teacher_query_var, width=35)
+        self.teacher_combo.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        teacher_btn = ttk.Button(frame, text="Показать классы", command=self._handle_teacher_classes_lookup)
+        teacher_btn.grid(row=0, column=2, padx=5, pady=5)
+
+        self.teacher_classes_var = tk.StringVar(value="Классы: —")
+        ttk.Label(frame, textvariable=self.teacher_classes_var, wraplength=400, justify="left").grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(10, 0))
+
+        frame.columnconfigure(1, weight=1)
+
+    def _build_students_tab(self, notebook):
+        frame = ttk.Frame(notebook, padding=10)
+        notebook.add(frame, text="Ученики")
+
+        self.total_students_var = tk.StringVar(value="Всего учеников: —")
+        ttk.Label(frame, textvariable=self.total_students_var, font=('Arial', 10, 'bold')).grid(
+            row=0, column=0, columnspan=3, sticky="w")
+
+        ttk.Label(frame, text="Класс:").grid(row=1, column=0, sticky="w", pady=(15, 0))
+        self.class_query_var = tk.StringVar()
+        self.student_class_combo = ttk.Combobox(frame, textvariable=self.class_query_var, width=15)
+        self.student_class_combo.grid(row=1, column=1, padx=5, pady=(15, 0), sticky="w")
+
+        class_btn = ttk.Button(frame, text="Посчитать", command=self._handle_class_count_lookup)
+        class_btn.grid(row=1, column=2, padx=5, pady=(15, 0))
+
+        self.class_count_var = tk.StringVar(value="Ученики в выбранном классе: —")
+        ttk.Label(frame, textvariable=self.class_count_var).grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
+
+    def _build_performance_tab(self, notebook):
+        frame = ttk.Frame(notebook, padding=10)
+        notebook.add(frame, text="Успеваемость")
+
+        self.good_count_var = tk.StringVar(value="Отличники: —")
+        self.bad_count_var = tk.StringVar(value="Двоечники: —")
+
+        ttk.Label(frame, textvariable=self.good_count_var, font=('Arial', 10, 'bold')).grid(row=0, column=0, sticky="w")
+        ttk.Label(frame, textvariable=self.bad_count_var, font=('Arial', 10, 'bold')).grid(row=0, column=1, sticky="w", padx=(20, 0))
+
+        ttk.Label(frame, text="Список отличников").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(frame, text="Список двоечников").grid(row=1, column=1, sticky="w", pady=(10, 0))
+
+        self.good_students_list = tk.Listbox(frame, height=8)
+        self.good_students_list.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
+
+        self.bad_students_list = tk.Listbox(frame, height=8)
+        self.bad_students_list.grid(row=2, column=1, sticky="nsew", pady=(5, 0), padx=(20, 0))
+
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(2, weight=1)
+
+    def _handle_subject_lookup(self):
+        subject = self.subject_query_var.get().strip() if hasattr(self, 'subject_query_var') else ""
+        if not subject:
+            messagebox.showwarning("Поиск предмета", "Выберите или введите предмет.")
+            return
+
+        teachers = self.data_manager.get_teachers_by_subject(subject)
+        self.subject_result_box.delete(0, tk.END)
+
+        if teachers:
+            for teacher in teachers:
+                self.subject_result_box.insert(tk.END, teacher)
+        else:
+            self.subject_result_box.insert(tk.END, "Нет данных по выбранному предмету")
+
+    def _handle_teacher_classes_lookup(self):
+        teacher = self.teacher_query_var.get().strip() if hasattr(self, 'teacher_query_var') else ""
+        if not teacher:
+            messagebox.showwarning("Поиск учителя", "Введите или выберите учителя.")
+            return
+
+        classes = self.data_manager.get_teacher_classes(teacher)
+        if classes:
+            self.teacher_classes_var.set(f"Классы: {', '.join(classes)}")
+        else:
+            self.teacher_classes_var.set("Классы: нет данных")
+
+    def _handle_class_count_lookup(self):
+        class_name = self.class_query_var.get().strip() if hasattr(self, 'class_query_var') else ""
+        if not class_name:
+            messagebox.showwarning("Поиск класса", "Введите или выберите класс.")
+            return
+
+        count = self.data_manager.get_student_count(class_name)
+        self.class_count_var.set(f"Ученики в классе {class_name}: {count}")
+
+    def _refresh_info_center_data(self):
+        if not self.info_window or not tk.Toplevel.winfo_exists(self.info_window):
+            return
+
+        subjects = self.data_manager.get_subject_list()
+        if hasattr(self, 'subject_combo'):
+            self.subject_combo['values'] = subjects
+
+        teachers = self.data_manager.get_teacher_list()
+        if hasattr(self, 'teacher_combo'):
+            self.teacher_combo['values'] = teachers
+
+        classes = self.data_manager.get_class_list()
+        if hasattr(self, 'student_class_combo'):
+            self.student_class_combo['values'] = classes
+
+        total_students = self.data_manager.get_student_count()
+        if hasattr(self, 'total_students_var'):
+            self.total_students_var.set(f"Всего учеников: {total_students}")
+
+        report = self.data_manager.get_academic_report()
+        if hasattr(self, 'good_count_var'):
+            self.good_count_var.set(f"Отличники: {len(report.get('good_students', []))}")
+        if hasattr(self, 'bad_count_var'):
+            self.bad_count_var.set(f"Двоечники: {len(report.get('bad_students', []))}")
+
+        if hasattr(self, 'good_students_list'):
+            self._populate_student_listbox(self.good_students_list, report.get('good_students', []))
+        if hasattr(self, 'bad_students_list'):
+            self._populate_student_listbox(self.bad_students_list, report.get('bad_students', []))
+
+    def _populate_student_listbox(self, listbox, students):
+        listbox.delete(0, tk.END)
+        if not students:
+            listbox.insert(tk.END, "Нет данных")
+            return
+        for student in students:
+            listbox.insert(tk.END, self._format_student_record(student))
+
+    def _format_student_record(self, student_row):
+        last_name, first_name, middle_name, class_name = student_row
+        fio = " ".join(part for part in [last_name, first_name, middle_name] if part)
+        if isinstance(class_name, (list, tuple)):
+            class_str = ", ".join(class_name)
+        else:
+            class_str = class_name or ""
+        return f"{fio} ({class_str})" if class_str else fio
 
     def on_search_button(self):
         """Обработчик нажатия кнопки поиска с проверкой пустого поле"""

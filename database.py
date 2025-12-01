@@ -79,7 +79,8 @@ class SchoolDatabase:
 
     def get_students_count(self, class_name=None):
         if class_name:
-            self.DB_CURSOR.execute("SELECT COUNT(*) FROM students WHERE class_name=%s", (class_name,))
+            query = "SELECT COUNT(*) FROM students WHERE %s = ANY(class_name)"
+            self.DB_CURSOR.execute(query, (class_name,))
         else:
             self.DB_CURSOR.execute("SELECT COUNT(*) FROM students")
         return self.DB_CURSOR.fetchone()[0]
@@ -162,13 +163,11 @@ class SchoolDatabase:
     def get_teachers_by_subject(self, subject):
         self.DB_CURSOR.execute("""SELECT last_name, first_name, middle_name
          FROM teachers WHERE subject = %s""", (subject,))
-        self.DB_CONNECTION.commit()
         return self.DB_CURSOR.fetchall()
 
     def get_teachers_by_classes(self, classes):
         self.DB_CURSOR.execute("""SELECT last_name, first_name, middle_name
         FROM teachers WHERE classes = %s""", (classes,))
-        self.DB_CONNECTION.commit()
         return self.DB_CURSOR.fetchall()
 
     def get_teacher_classes(self, teacher_id):
@@ -216,3 +215,43 @@ class SchoolDatabase:
         self.DB_CURSOR.execute(query, (last_name, first_name, middle_name))
         result = self.DB_CURSOR.fetchone()
         return result[0] if result else None
+
+    def get_subject_list(self):
+        self.DB_CURSOR.execute("""
+            SELECT DISTINCT subject
+            FROM teachers
+            WHERE subject IS NOT NULL AND subject <> ''
+            ORDER BY subject
+        """)
+        return [row[0] for row in self.DB_CURSOR.fetchall()]
+
+    def get_teacher_fios(self):
+        self.DB_CURSOR.execute("""
+            SELECT last_name, first_name, COALESCE(middle_name, '')
+            FROM teachers
+            ORDER BY last_name, first_name, middle_name
+        """)
+        return self.DB_CURSOR.fetchall()
+
+    def get_class_list(self):
+        self.DB_CURSOR.execute("""
+            SELECT DISTINCT class_name
+            FROM (
+                SELECT UNNEST(class_name) AS class_name
+                FROM students
+            ) AS t
+            WHERE class_name IS NOT NULL AND class_name <> ''
+            ORDER BY class_name
+        """)
+        return [row[0] for row in self.DB_CURSOR.fetchall()]
+
+    def get_teacher_classes_by_name(self, last_name, first_name, middle_name=""):
+        query = """
+            SELECT classes
+            FROM teachers
+            WHERE last_name = %s AND first_name = %s AND COALESCE(middle_name, '') = %s
+            LIMIT 1
+        """
+        self.DB_CURSOR.execute(query, (last_name, first_name, middle_name))
+        result = self.DB_CURSOR.fetchone()
+        return result[0] if result else []
