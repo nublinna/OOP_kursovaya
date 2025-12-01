@@ -254,6 +254,16 @@ class SchoolDatabase:
         self.reset_sequence("teachers")
         self.DB_CONNECTION.commit()
 
+    def clear_students(self):
+        self.DB_CURSOR.execute("DELETE FROM students")
+        self.reset_sequence("students")
+        self.DB_CONNECTION.commit()
+
+    def clear_grades(self):
+        self.DB_CURSOR.execute("DELETE FROM grades")
+        self.reset_sequence("grades")
+        self.DB_CONNECTION.commit()
+
     def reset_sequence(self, table_name):
         query = f"""
             SELECT setval(
