@@ -1235,10 +1235,16 @@ class SchoolApp:
         control_frame = tk.Frame(self.root, bg='#f0f0f0')
         control_frame.pack(fill="x", padx=10, pady=5)
 
-        tk.Label(control_frame, text="Просмотр:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
+        left_controls = tk.Frame(control_frame, bg='#f0f0f0')
+        left_controls.pack(side="left", fill="x", expand=True)
+
+        right_controls = tk.Frame(control_frame, bg='#f0f0f0')
+        right_controls.pack(side="right")
+
+        tk.Label(left_controls, text="Просмотр:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
 
         self.table_var = tk.StringVar(value="Учителя")
-        self.table_combo = ttk.Combobox(control_frame,
+        self.table_combo = ttk.Combobox(left_controls,
                                         textvariable=self.table_var,
                                         values=["Учителя", "Ученики", "Оценки"],
                                         state="readonly",
@@ -1246,30 +1252,30 @@ class SchoolApp:
         self.table_combo.pack(side="left", padx=(0, 20))
         self.table_combo.bind('<<ComboboxSelected>>', self.on_table_change)
 
-        tk.Label(control_frame, text="Поиск:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
+        tk.Label(left_controls, text="Поиск:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(0, 5))
 
         self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(control_frame, textvariable=self.search_var, width=20)
+        self.search_entry = ttk.Entry(left_controls, textvariable=self.search_var, width=20)
         self.search_entry.pack(side="left", padx=(0, 5))
         self.search_entry.bind('<KeyRelease>', self.on_search)
 
-        self.search_btn = ttk.Button(control_frame, text="Найти", command=self.on_search_button)
+        self.search_btn = ttk.Button(left_controls, text="Найти", command=self.on_search_button)
         self.search_btn.pack(side="left", padx=(5, 0))
 
-        tk.Label(control_frame, text="Сортировка:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(20, 5))
+        tk.Label(left_controls, text="Сортировка:", bg='#f0f0f0', font=('Arial', 9)).pack(side="left", padx=(20, 5))
 
         self.sort_var = tk.StringVar()
-        self.sort_combo = ttk.Combobox(control_frame,
+        self.sort_combo = ttk.Combobox(left_controls,
                                        textvariable=self.sort_var,
                                        state="readonly",
                                        width=15)
         self.sort_combo.pack(side="left", padx=(0, 5))
         self.sort_combo.bind('<<ComboboxSelected>>', self.on_sort_change)
 
-        self.reset_btn = ttk.Button(control_frame, text="Сбросить", command=self.reset_filters)
+        self.reset_btn = ttk.Button(left_controls, text="Сбросить", command=self.reset_filters)
         self.reset_btn.pack(side="left", padx=(10, 0))
 
-        self.info_btn = ttk.Button(control_frame, text="Инфо для завуча", command=self.open_info_center)
+        self.info_btn = ttk.Button(right_controls, text="Инфо для завуча", command=self.open_info_center)
         self.info_btn.pack(side="right", padx=(0, 5))
 
         return control_frame
