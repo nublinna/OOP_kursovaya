@@ -14,6 +14,23 @@ class SchoolDatabase:
         self.DB_CURSOR = self.DB_CONNECTION.cursor()
         self.__create_tables()
 
+    def _prepare_array(self, values):
+        if not values:
+            return '{}'
+        if isinstance(values, str):
+            cleaned = values.strip()
+            if not cleaned:
+                return '{}'
+            items = [item.strip() for item in cleaned.split(',') if item.strip()]
+        else:
+            items = [str(item).strip() for item in values if str(item).strip()]
+
+        if not items:
+            return '{}'
+
+        quoted = [f'"{item.replace("\"", "\\\"")}"' for item in items]
+        return '{' + ','.join(quoted) + '}'
+
     def __create_tables(self):
         students_table = """
                             CREATE TABLE IF NOT EXISTS students (
@@ -55,12 +72,14 @@ class SchoolDatabase:
                         VALUES (%s, %s, %s, %s)
                         RETURNING id
                         """
+        class_array = self._prepare_array(class_name)
+
         self.DB_CURSOR.execute(insert_student_query,
                                (
                                    last_name,
                                    first_name,
                                    middle_name,
-                                   class_name
+                                   class_array
                                ))
         student_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
@@ -73,7 +92,8 @@ class SchoolDatabase:
             middle_name = %s
             WHERE id = %s
         """
-        self.DB_CURSOR.execute(update_student_query,(last_name, first_name, class_name,
+        class_array = self._prepare_array(class_name)
+        self.DB_CURSOR.execute(update_student_query,(last_name, first_name, class_array,
                                                      middle_name, student_id))
         self.DB_CONNECTION.commit()
 
@@ -137,12 +157,14 @@ class SchoolDatabase:
                                 VALUES (%s, %s, %s, %s, %s)
                                 RETURNING id
                                 """
+        classes_array = self._prepare_array(classes)
+
         self.DB_CURSOR.execute(add_teacher_query,
                                (
                                    last_name,
                                    first_name,
                                    subject,
-                                   classes,
+                                   classes_array,
                                    middle_name
                                ))
         teacher_id = self.DB_CURSOR.fetchone()[0]
@@ -156,8 +178,9 @@ class SchoolDatabase:
                     classes = %s, middle_name = %s
                     WHERE id = %s
                 """
+        classes_array = self._prepare_array(classes)
         self.DB_CURSOR.execute(update_teachers_query, (last_name, first_name, subject,
-                                                      classes, middle_name, teacher_id))
+                                                      classes_array, middle_name, teacher_id))
         self.DB_CONNECTION.commit()
 
     def get_teachers_by_subject(self, subject):
