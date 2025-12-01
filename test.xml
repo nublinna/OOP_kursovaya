@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<school_data><teachers><teacher fio="Иванова Анна Петровна" subject="Математика" classes="5А, 6Б, 9В" /><teacher fio="Петров Сергей Владимирович" subject="Физика" classes="7А, 8Б, 10А" /><teacher fio="Сидорова Ольга Михайловна" subject="Литература" classes="5-8 классы" /><teacher fio="Козлов Дмитрий Иванович" subject="История" classes="9-11 классы" /><teacher fio="Абрамова Елена Викторовна" subject="Химия" classes="8-11 классы" /><teacher fio="Белов Алексей Николаевич" subject="Биология" classes="6-9 классы" /></teachers></school_data>
