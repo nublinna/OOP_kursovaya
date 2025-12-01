@@ -22,8 +22,6 @@ from database import SchoolDatabase
 from models import Teacher, Student, GradeRecord
 
 
-# ДОБАВЛЯЕМ В НАЧАЛО ОСНОВНОГО ФАЙЛА, ПОСЛЕ ИМПОРТОВ
-
 class SchoolDataManager:
     """Класс для интеграции БД с GUI - соответствует требованиям ООП"""
 
@@ -508,10 +506,12 @@ class ReportGenerator:
 
 class SchoolApp:
     """
-    Класс SchoolApp используется для создания основных компонентов программы
+    Основной класс приложения.
+    Здесь описаны все окна, кнопки и обработчики.
     """
 
     def __init__(self, root):
+        """Создаёт окно, настраивает виджеты и загружает данные."""
         self.root = root
         self.root.title("Школьная база данных")
         self.root.configure(bg='#f0f0f0')
@@ -544,7 +544,7 @@ class SchoolApp:
         self.show_table("teachers")
 
     def create_teachers_table(self):
-        """Создание таблицы учителей с данными из БД"""
+        """Создаёт таблицу учителей и заполняет её."""
         self.teachers_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
         columns = ("ФИО", "Предмет", "Классы")
@@ -571,7 +571,7 @@ class SchoolApp:
         self.data_source["teachers"] = "database"
 
     def create_students_table(self):
-        """Создание таблицы учеников с данными из БД"""
+        """Создаёт таблицу учеников и заполняет её."""
         self.students_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
         columns = ("ФИО", "Класс")
@@ -598,7 +598,7 @@ class SchoolApp:
         self.data_source["students"] = "database"
 
     def create_grades_table(self):
-        """Создание таблицы оценок"""
+        """Создаёт таблицу оценок и заполняет её."""
         self.grades_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
         columns = ("ФИО", "Предмет", "Оценка")
@@ -624,6 +624,7 @@ class SchoolApp:
         self.data_source["grades"] = "database"
 
     def setup_styles(self):
+        """Настраивает стили для таблиц."""
         style = ttk.Style()
         style.theme_use('clam')
 
@@ -642,9 +643,7 @@ class SchoolApp:
         style.map("Treeview", background=[('selected', '#4a6984')])
 
     def create_top_panel(self):
-        """
-        Создание верхней панели с кнопками
-        """
+        """Рисует верхнюю панель с кнопками."""
         top_frame = tk.Frame(self.root, bg='#d0d0d0', height=80)
         top_frame.pack(fill="x", padx=5, pady=5)
         top_frame.pack_propagate(False)
@@ -740,7 +739,7 @@ class SchoolApp:
         return top_frame
 
     def detect_file_format(self, filename):
-        """Определяет формат файла по расширению"""
+        """Определяет формат файла по расширению."""
         _, ext = os.path.splitext(filename)
         ext = ext.lower()
 
@@ -752,7 +751,7 @@ class SchoolApp:
             return None
 
     def save_to_file(self, filename):
-        """Сохранение данных текущей таблицы в файл"""
+        """Сохраняет данные текущей таблицы в файл."""
         try:
             file_format = self.detect_file_format(filename)
 
@@ -766,7 +765,7 @@ class SchoolApp:
             raise FileOperationError(f"Ошибка при сохранении файла: {str(e)}")
 
     def save_to_csv(self, filename):
-        """Сохранение данных текущей таблицы в файл CSV"""
+        """Сохраняет данные текущей таблицы в CSV."""
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as file:
                 writer = csv.writer(file)
@@ -789,7 +788,7 @@ class SchoolApp:
             raise FileOperationError(f"Ошибка при сохранении CSV файла: {str(e)}")
 
     def save_to_xml(self, filename):
-        """Сохранение данных текущей таблицы в файл XML"""
+        """Сохраняет данные текущей таблицы в XML."""
         try:
             root = ET.Element("school_data")
 
@@ -828,7 +827,7 @@ class SchoolApp:
             raise XMLProcessingError(f"Ошибка при сохранении XML файла: {str(e)}")
 
     def load_from_file(self, filename):
-        """Загрузка данных из файла в текущую таблицу"""
+        """Загружает данные из XML/CSV в таблицу."""
         try:
             file_format = self.detect_file_format(filename)
 
@@ -842,7 +841,7 @@ class SchoolApp:
             raise FileOperationError(f"Ошибка при загрузке файла: {str(e)}")
 
     def load_from_csv(self, filename):
-        """Загрузка данных из файла CSV в текущую таблицу"""
+        """Загружает CSV в текущую таблицу."""
         try:
             with open(filename, 'r', encoding='utf-8') as file:
                 reader = csv.reader(file)
@@ -855,7 +854,7 @@ class SchoolApp:
             raise FileOperationError(f"Ошибка при загрузке CSV файла: {str(e)}")
 
     def load_from_xml(self, filename):
-        """Загрузка данных из файла XML в текущую таблицу"""
+        """Загружает XML в текущую таблицу."""
         try:
             tree_xml = ET.parse(filename)
             root = tree_xml.getroot()
@@ -966,13 +965,13 @@ class SchoolApp:
         return imported
 
     def validate_search_input(self, search_term):
-        """Проверяет введенный текст для поиска"""
+        """Проверяет, что поле поиска не пустое."""
         if not search_term or not search_term.strip():
             raise EmptySearchError("Поле поиска не может быть пустым")
         return True
 
     def on_save_click(self, _):
-        """Обработчик событий для кнопки "Сохранить"""
+        """Сохраняет текущую таблицу в файл."""
         try:
             file_path = filedialog.asksaveasfilename(
                 title="Сохранить файл",
@@ -1002,7 +1001,7 @@ class SchoolApp:
             messagebox.showerror("Ошибка", f"Произошла ошибка при сохранении файла: {str(e)}")
 
     def on_open_click(self, _):
-        """Обработчик событий для кнопки "Открыть файл"""
+        """Загружает таблицу из файла."""
         try:
             file_path = filedialog.askopenfilename(
                 title="Выберите файл",
@@ -1031,7 +1030,7 @@ class SchoolApp:
             messagebox.showerror("Ошибка", f"Произошла непредвиденная ошибка при открытии файла: {str(e)}")
 
     def on_new_click(self, _):
-        """Обработчик событий для кнопки "Создать файл"""
+        """Создаёт пустой файл и очищает таблицу."""
         try:
             file_path = filedialog.asksaveasfilename(
                 title="Создать новый файл",
@@ -1084,7 +1083,7 @@ class SchoolApp:
             messagebox.showerror("Ошибка", f"Произошла ошибка при создании файла: {str(e)}")
 
     def edit_selected_row(self):
-        """Редактирование выбранной строки в таблице"""
+        """Открывает окно редактирования выбранной строки."""
         try:
             if self.current_table == "teachers":
                 tree = self.teachers_tree
@@ -1182,7 +1181,7 @@ class SchoolApp:
     # ДОБАВЛЯЕМ В КЛАСС SchoolApp:
 
     def refresh_data(self, table_type=None):
-        """Обновление данных из БД"""
+        """Обновляет данные из базы для указанной таблицы."""
         table = table_type or self.current_table
 
         if table == "teachers":

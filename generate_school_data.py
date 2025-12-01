@@ -1,5 +1,6 @@
+"""Генератор XML для учителей, учеников и оценок."""
+
 import random
-xml_declaration = True
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 
@@ -89,6 +90,7 @@ subject_ranges = {
 
 
 def next_name(index):
+    """Возвращает случайное ФИО."""
     last = random.choice(last_names)
     first = random.choice(first_names)
     middle = random.choice(middle_names)
@@ -96,6 +98,7 @@ def next_name(index):
 
 
 def classes_in_range(start_grade, end_grade):
+    """Возвращает список классов, входящих в заданный диапазон параллелей."""
     result = []
     for grade, letters in class_structure.items():
         if start_grade <= grade <= end_grade:
@@ -105,6 +108,7 @@ def classes_in_range(start_grade, end_grade):
 
 
 def subjects_for_grade(grade):
+    """Возвращает набор предметов для указанного класса."""
     if grade <= 2:
         return primary_subjects
     if grade <= 4:
@@ -180,6 +184,7 @@ for student in students:
 
 
 def write_teachers(filename):
+    """Сохраняет учителей в файл XML."""
     root = Element("school_data")
     teachers_el = SubElement(root, "teachers")
     for teacher in teacher_records:
@@ -191,6 +196,7 @@ def write_teachers(filename):
 
 
 def write_students(filename):
+    """Сохраняет учеников в файл XML."""
     root = Element("school_data")
     students_el = SubElement(root, "students")
     for student in students:
@@ -201,6 +207,7 @@ def write_students(filename):
 
 
 def write_grades(filename):
+    """Сохраняет оценки в файл XML."""
     root = Element("school_data")
     grades_el = SubElement(root, "grades")
     for grade in grades:

@@ -2,6 +2,7 @@ import os
 import psycopg2
 
 class SchoolDatabase:
+    """Простой класс-обёртка над PostgreSQL. Содержит все запросы приложения."""
     def __init__(self):
         db_config = {
             "dbname": os.getenv("SCHOOL_DB_NAME", "school_db"),
@@ -16,6 +17,7 @@ class SchoolDatabase:
         self.reset_all_sequences()
 
     def __del__(self):
+        """Закрывает соединение и курсор при уничтожении объекта."""
         try:
             if hasattr(self, "DB_CURSOR") and self.DB_CURSOR:
                 self.DB_CURSOR.close()
@@ -25,7 +27,7 @@ class SchoolDatabase:
             pass
 
     def _prepare_array(self, values):
-        """Преобразует разные входные форматы в список строк для TEXT[]"""
+        """Приводит список/строку классов к виду, понятному PostgreSQL."""
         if not values:
             return []
 
@@ -44,6 +46,7 @@ class SchoolDatabase:
         return result
 
     def __create_tables(self):
+        """Создаёт таблицы, если их ещё нет."""
         students_table = """
                             CREATE TABLE IF NOT EXISTS students (
                                 id SERIAL PRIMARY KEY,
@@ -78,6 +81,7 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def add_student(self, last_name, first_name, class_name,  middle_name=""):
+        """Добавляет ученика и возвращает его id."""
         insert_student_query = """
                         INSERT INTO students (last_name, first_name,
                         middle_name, class_name)
@@ -96,6 +100,7 @@ class SchoolDatabase:
 
     def update_students(self, student_id, last_name, first_name,
                         class_name, middle_name=""):
+        """Обновляет данные ученика."""
         update_student_query = """
             UPDATE students SET last_name = %s, first_name = %s, class_name = %s,
             middle_name = %s
@@ -107,6 +112,7 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def get_students_count(self, class_name=None):
+        """Считает учеников в школе или в выбранном классе."""
         if class_name:
             query = "SELECT COUNT(*) FROM students WHERE %s = ANY(class_name)"
             self.DB_CURSOR.execute(query, (class_name,))
@@ -115,6 +121,7 @@ class SchoolDatabase:
         return self.DB_CURSOR.fetchone()[0]
 
     def get_grades(self):
+        """Возвращает данные для отчёта об успеваемости."""
         self.DB_CURSOR.execute("""
             SELECT last_name, first_name, middle_name, class_name
             FROM students WHERE id IN (
@@ -144,6 +151,7 @@ class SchoolDatabase:
         }
 
     def add_grade(self, student_id, subject_name, grade):
+        """Добавляет новую оценку и возвращает её id."""
         query = """
             INSERT INTO grades (student_id, subject_name, grade)
             VALUES (%s, %s, %s)
@@ -155,11 +163,13 @@ class SchoolDatabase:
         return grade_id
 
     def delete_student(self, student_id):
+        """Удаляет ученика и все его оценки."""
         self.DB_CURSOR.execute("DELETE FROM grades WHERE student_id = %s", (student_id,))
         self.DB_CURSOR.execute("DELETE FROM students WHERE id = %s", (student_id,))
         self.DB_CONNECTION.commit()
 
     def add_teacher(self, last_name, first_name, subject, classes, middle_name=""):
+        """Добавляет учителя и возвращает его id."""
         add_teacher_query = """
                                 INSERT INTO teachers (last_name, first_name, 
                                 middle_name, subject, classes)
@@ -178,6 +188,7 @@ class SchoolDatabase:
 
     def update_teachers(self, teacher_id, last_name, first_name,
                         subject, classes, middle_name=""):
+        """Обновляет данные учителя."""
         update_teachers_query = """
                     UPDATE teachers SET last_name = %s, first_name = %s, subject = %s,
                     classes = %s, middle_name = %s
@@ -191,24 +202,29 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def get_teachers_by_subject(self, subject):
+        """Находит учителей по предмету."""
         self.DB_CURSOR.execute("""SELECT last_name, first_name, middle_name
          FROM teachers WHERE subject = %s""", (subject,))
         return self.DB_CURSOR.fetchall()
 
     def get_teachers_by_classes(self, classes):
+        """Находит учителей по набору классов."""
         self.DB_CURSOR.execute("""SELECT last_name, first_name, middle_name
         FROM teachers WHERE classes = %s""", (classes,))
         return self.DB_CURSOR.fetchall()
 
     def get_teacher_classes(self, teacher_id):
+        """Возвращает список классов, закреплённых за учителем."""
         self.DB_CURSOR.execute("SELECT classes FROM teachers WHERE id = %s", (teacher_id,))
         return self.DB_CURSOR.fetchone()[0]
 
     def delete_teacher(self, teacher_id):
+        """Удаляет учителя."""
         self.DB_CURSOR.execute("DELETE FROM teachers WHERE id = %s", (teacher_id,))
         self.DB_CONNECTION.commit()
 
     def get_all_grades_rows(self):
+        """Возвращает все оценки вместе с ФИО учеников."""
         grade_rows_query = """
             SELECT g.id,
                    g.student_id,
@@ -225,6 +241,7 @@ class SchoolDatabase:
         return self.DB_CURSOR.fetchall()
 
     def update_grade(self, grade_id, student_id, subject_name, grade):
+        """Правит существующую оценку."""
         query = """
             UPDATE grades
             SET student_id = %s, subject_name = %s, grade = %s
@@ -234,10 +251,12 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def delete_grade(self, grade_id):
+        """Удаляет оценку."""
         self.DB_CURSOR.execute("DELETE FROM grades WHERE id = %s", (grade_id,))
         self.DB_CONNECTION.commit()
 
     def find_student_id(self, last_name, first_name, middle_name=""):
+        """Ищет id ученика по ФИО."""
         query = """
             SELECT id FROM students
             WHERE last_name = %s AND first_name = %s AND COALESCE(middle_name, '') = %s
@@ -247,6 +266,7 @@ class SchoolDatabase:
         return result[0] if result else None
 
     def teacher_exists(self, last_name, first_name, middle_name, subject):
+        """Проверяет, есть ли учитель с таким ФИО и предметом."""
         query = """
             SELECT id FROM teachers
             WHERE last_name = %s
@@ -259,21 +279,25 @@ class SchoolDatabase:
         return self.DB_CURSOR.fetchone() is not None
 
     def clear_teachers(self):
+        """Полностью очищает таблицу учителей."""
         self.DB_CURSOR.execute("DELETE FROM teachers")
         self.reset_sequence("teachers")
         self.DB_CONNECTION.commit()
 
     def clear_students(self):
+        """Полностью очищает таблицу учеников."""
         self.DB_CURSOR.execute("DELETE FROM students")
         self.reset_sequence("students")
         self.DB_CONNECTION.commit()
 
     def clear_grades(self):
+        """Полностью очищает таблицу оценок."""
         self.DB_CURSOR.execute("DELETE FROM grades")
         self.reset_sequence("grades")
         self.DB_CONNECTION.commit()
 
     def reset_sequence(self, table_name):
+        """Сбрасывает последовательность id для указанной таблицы."""
         query = f"""
             SELECT setval(
                 pg_get_serial_sequence('{table_name}', 'id'),
@@ -285,18 +309,22 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def reset_all_sequences(self):
+        """Сбрасывает последовательности для всех таблиц."""
         for table in ("students", "teachers", "grades"):
             self.reset_sequence(table)
 
     def fetch_all_teachers(self):
+        """Возвращает все строки из таблицы teachers."""
         self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, subject, classes FROM teachers")
         return self.DB_CURSOR.fetchall()
 
     def fetch_all_students(self):
+        """Возвращает все строки из таблицы students."""
         self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, class_name FROM students")
         return self.DB_CURSOR.fetchall()
 
     def get_subject_list(self):
+        """Возвращает список всех предметов."""
         self.DB_CURSOR.execute("""
             SELECT DISTINCT subject
             FROM teachers
@@ -306,6 +334,7 @@ class SchoolDatabase:
         return [row[0] for row in self.DB_CURSOR.fetchall()]
 
     def get_teacher_fios(self):
+        """Возвращает список ФИО учителей."""
         self.DB_CURSOR.execute("""
             SELECT last_name, first_name, COALESCE(middle_name, '')
             FROM teachers
@@ -314,6 +343,7 @@ class SchoolDatabase:
         return self.DB_CURSOR.fetchall()
 
     def get_class_list(self):
+        """Возвращает список классов в школе."""
         self.DB_CURSOR.execute("""
             SELECT DISTINCT class_name
             FROM (
@@ -326,6 +356,7 @@ class SchoolDatabase:
         return [row[0] for row in self.DB_CURSOR.fetchall()]
 
     def get_teacher_classes_by_name(self, last_name, first_name, middle_name=""):
+        """Возвращает массив классов по ФИО учителя."""
         query = """
             SELECT classes
             FROM teachers
