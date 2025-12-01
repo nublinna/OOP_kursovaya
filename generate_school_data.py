@@ -89,9 +89,9 @@ subject_ranges = {
 
 
 def next_name(index):
-    last = last_names[index % len(last_names)]
-    first = first_names[(index // len(last_names)) % len(first_names)]
-    middle = middle_names[(index // (len(last_names) * len(first_names))) % len(middle_names)]
+    last = random.choice(last_names)
+    first = random.choice(first_names)
+    middle = random.choice(middle_names)
     return f"{last} {first} {middle}"
 
 
@@ -214,4 +214,5 @@ def write_grades(filename):
 write_teachers("teachers_data.xml")
 write_students("students_data.xml")
 write_grades("grades_data.xml")
+
 
