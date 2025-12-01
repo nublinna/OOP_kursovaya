@@ -15,6 +15,15 @@ class SchoolDatabase:
         self.__create_tables()
         self.reset_all_sequences()
 
+    def __del__(self):
+        try:
+            if hasattr(self, "DB_CURSOR") and self.DB_CURSOR:
+                self.DB_CURSOR.close()
+            if hasattr(self, "DB_CONNECTION") and self.DB_CONNECTION:
+                self.DB_CONNECTION.close()
+        except Exception:
+            pass
+
     def _prepare_array(self, values):
         """Преобразует разные входные форматы в список строк для TEXT[]"""
         if not values:
@@ -278,6 +287,14 @@ class SchoolDatabase:
     def reset_all_sequences(self):
         for table in ("students", "teachers", "grades"):
             self.reset_sequence(table)
+
+    def fetch_all_teachers(self):
+        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, subject, classes FROM teachers")
+        return self.DB_CURSOR.fetchall()
+
+    def fetch_all_students(self):
+        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, class_name FROM students")
+        return self.DB_CURSOR.fetchall()
 
     def get_subject_list(self):
         self.DB_CURSOR.execute("""

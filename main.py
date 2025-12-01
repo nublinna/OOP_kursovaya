@@ -19,6 +19,7 @@ from xhtml2pdf import pisa
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from database import SchoolDatabase
+from models import Teacher, Student, GradeRecord
 
 
 # ДОБАВЛЯЕМ В НАЧАЛО ОСНОВНОГО ФАЙЛА, ПОСЛЕ ИМПОРТОВ
@@ -152,6 +153,9 @@ class SchoolDataManager:
         middle_name = parts[2] if len(parts) > 2 else ""
         return last_name, first_name, middle_name
 
+    def _split_classes(self, text):
+        return [cls.strip() for cls in text.split(",") if cls.strip()]
+
     def _format_fio(self, last_name, first_name, middle_name):
         return " ".join(part for part in [last_name, first_name, middle_name] if part)
 
@@ -206,22 +210,12 @@ class SchoolDataManager:
     def get_all_teachers(self):
         """Получение всех учителей в формате для GUI"""
         try:
-            self.db.DB_CURSOR.execute(
-                "SELECT id, last_name, first_name, middle_name, subject, classes FROM teachers"
-            )
-            teachers = self.db.DB_CURSOR.fetchall()
-
-            result = []
-            for teacher in teachers:
-                teacher_id, last_name, first_name, middle_name, subject, classes = teacher
-                fio = f"{last_name} {first_name} {middle_name}".strip()
-                classes_str = ", ".join(classes) if classes else ""
-                result.append({
-                    "id": teacher_id,
-                    "values": (fio, subject, classes_str)
-                })
-
-            return result
+            rows = self.db.fetch_all_teachers()
+            teachers = []
+            for teacher_id, last_name, first_name, middle_name, subject, classes in rows:
+                teacher = Teacher(last_name, first_name, middle_name, subject, classes or [])
+                teachers.append({"id": teacher_id, "values": teacher.to_display_tuple()})
+            return teachers
         except Exception as e:
             print(f"Ошибка получения учителей: {e}")
             return []
@@ -229,21 +223,11 @@ class SchoolDataManager:
     def get_all_students(self):
         """Получение всех учеников в формате для GUI"""
         try:
-            self.db.DB_CURSOR.execute(
-                "SELECT id, last_name, first_name, middle_name, class_name FROM students"
-            )
-            students = self.db.DB_CURSOR.fetchall()
-
+            rows = self.db.fetch_all_students()
             result = []
-            for student in students:
-                student_id, last_name, first_name, middle_name, class_name = student
-                fio = f"{last_name} {first_name} {middle_name}".strip()
-                class_str = ", ".join(class_name) if class_name else ""
-                result.append({
-                    "id": student_id,
-                    "values": (fio, class_str)
-                })
-
+            for student_id, last_name, first_name, middle_name, classes in rows:
+                student = Student(last_name, first_name, middle_name, classes or [])
+                result.append({"id": student_id, "values": student.to_display_tuple()})
             return result
         except Exception as e:
             print(f"Ошибка получения учеников: {e}")
@@ -252,15 +236,15 @@ class SchoolDataManager:
     def get_all_grades(self):
         """Получение всех оценок для отображения"""
         try:
-            grades = self.db.get_all_grades_rows()
+            rows = self.db.get_all_grades_rows()
             result = []
-            for row in grades:
-                grade_id, student_id, last_name, first_name, middle_name, subject_name, grade = row
+            for grade_id, student_id, last_name, first_name, middle_name, subject_name, grade in rows:
                 fio = f"{last_name} {first_name} {middle_name}".strip()
+                grade_obj = GradeRecord(student_id, subject_name, grade)
                 result.append({
                     "id": grade_id,
                     "student_id": student_id,
-                    "values": (fio, subject_name, str(grade))
+                    "values": grade_obj.to_display_tuple(fio)
                 })
             return result
         except Exception as e:
@@ -271,8 +255,10 @@ class SchoolDataManager:
         """Добавление учителя из GUI"""
         try:
             last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = [cls.strip() for cls in classes_str.split(",") if cls.strip()]
-            self.db.add_teacher(last_name, first_name, subject, classes, middle_name)
+            classes = self._split_classes(classes_str)
+            teacher = Teacher(last_name, first_name, middle_name, subject, classes)
+            last, first, middle, subj, class_list = teacher.to_db_payload()
+            self.db.add_teacher(last, first, subj, class_list, middle)
             return True
         except Exception as e:
             print(f"Ошибка добавления учителя: {e}")
@@ -282,8 +268,10 @@ class SchoolDataManager:
         """Добавление ученика из GUI"""
         try:
             last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = [cls.strip() for cls in class_name.split(",") if cls.strip()]
-            self.db.add_student(last_name, first_name, classes, middle_name)
+            classes = self._split_classes(class_name)
+            student = Student(last_name, first_name, middle_name, classes)
+            payload = student.to_db_payload()
+            self.db.add_student(payload[0], payload[1], payload[3], payload[2])
             return True
         except Exception as e:
             print(f"Ошибка добавления ученика: {e}")
@@ -297,7 +285,7 @@ class SchoolDataManager:
             except ValueError:
                 continue
             last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = [cls.strip() for cls in classes_str.split(",") if cls.strip()]
+            classes = self._split_classes(classes_str)
 
             if self.db.teacher_exists(last_name, first_name, middle_name, subject):
                 continue
@@ -314,7 +302,7 @@ class SchoolDataManager:
             except ValueError:
                 continue
             last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = [cls.strip() for cls in class_str.split(",") if cls.strip()]
+            classes = self._split_classes(class_str)
             self.db.add_student(last_name, first_name, classes, middle_name)
             imported += 1
         return imported
