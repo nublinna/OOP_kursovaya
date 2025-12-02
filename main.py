@@ -11,6 +11,7 @@ from tkinter import ttk, messagebox, filedialog
 import csv
 import xml.etree.ElementTree as ET
 import datetime
+import re
 import os
 from xhtml2pdf.default import DEFAULT_FONT
 from xml.dom import minidom
@@ -24,6 +25,30 @@ from models import Teacher, Student, GradeRecord
 
 class SchoolDataManager:
     """Готовит данные из базы для графического интерфейса."""
+
+    ALLOWED_SUBJECTS = [
+        "Начальные классы",
+        "Русский язык", "Русская литература", "Иностранный язык",
+        "Английский язык", "Немецкий язык", "История России",
+        "Всемирная история", "Математика", "Физика", "Химия",
+        "Биология", "География", "Информатика", "ОБЖ",
+        "Физкультура", "Музыка", "ИЗО", "Человек и мир",
+        "Обществознание", "Экономика"
+    ]
+
+    CLASS_LETTERS = {
+        1: ["А", "Б", "В"],
+        2: ["А", "Б", "В"],
+        3: ["А", "Б", "В"],
+        4: ["А", "Б", "В"],
+        5: ["А", "Б"],
+        6: ["А", "Б"],
+        7: ["А", "Б"],
+        8: ["А", "Б"],
+        9: ["А", "Б"],
+        10: ["А", "Б"],
+        11: ["А", "Б"]
+    }
 
     def __init__(self):
         self.db = SchoolDatabase()
@@ -59,22 +84,22 @@ class SchoolDataManager:
         """Возвращает наборы демо-данных"""
         demo_teachers = [
             {"last_name": "Иванова", "first_name": "Анна", "middle_name": "Петровна",
-             "subject": "Математика", "classes": ["5А", "6Б", "9В"]},
+             "subject": "Математика", "classes": ["5А", "6Б", "9В"], "birth_date": "12.03.1980"},
             {"last_name": "Петров", "first_name": "Сергей", "middle_name": "Владимирович",
-             "subject": "Физика", "classes": ["7А", "8Б", "10А"]},
+             "subject": "Физика", "classes": ["7А", "8Б", "10А"], "birth_date": "02.11.1975"},
             {"last_name": "Сидорова", "first_name": "Ольга", "middle_name": "Михайловна",
-             "subject": "Литература", "classes": ["5А", "6А", "7А", "8А"]},
+             "subject": "Русская литература", "classes": ["5А", "6А", "7А", "8А"], "birth_date": "25.07.1982"},
         ]
 
         demo_students = [
             {"last_name": "Алексеев", "first_name": "Александр", "middle_name": "Сергеевич",
-             "class_name": ["5А"]},
+             "class_name": ["5А"], "birth_date": "10.02.2013"},
             {"last_name": "Борисова", "first_name": "Екатерина", "middle_name": "Игоревна",
-             "class_name": ["6Б"]},
+             "class_name": ["6Б"], "birth_date": "18.05.2012"},
             {"last_name": "Васильев", "first_name": "Максим", "middle_name": "Дмитриевич",
-             "class_name": ["7А"]},
+             "class_name": ["7А"], "birth_date": "04.09.2011"},
             {"last_name": "Григорьева", "first_name": "София", "middle_name": "Андреевна",
-             "class_name": ["8Б"]},
+             "class_name": ["8Б"], "birth_date": "22.12.2010"},
         ]
 
         demo_grades = [
@@ -102,7 +127,8 @@ class SchoolDataManager:
                 teacher["first_name"],
                 teacher["subject"],
                 teacher["classes"],
-                teacher["middle_name"]
+                    teacher["middle_name"],
+                    self._parse_birth_date(teacher.get("birth_date", "01.01.1980")).isoformat()
             )
 
     def _seed_students_if_needed(self, demo_students):
@@ -115,7 +141,8 @@ class SchoolDataManager:
                 student["last_name"],
                 student["first_name"],
                 student["class_name"],
-                student["middle_name"]
+                    student["middle_name"],
+                    self._parse_birth_date(student.get("birth_date", "01.09.2012")).isoformat()
             )
 
     def _build_student_index(self):
@@ -157,6 +184,109 @@ class SchoolDataManager:
 
     def _format_fio(self, last_name, first_name, middle_name):
         return " ".join(part for part in [last_name, first_name, middle_name] if part)
+
+    def _parse_and_validate_fio(self, fio):
+        """Проверяет ФИО и возвращает отдельные части."""
+        fio = fio.strip()
+        if not fio:
+            raise ValueError("Поле ФИО не может быть пустым")
+        parts = fio.split()
+        if len(parts) < 2:
+            raise ValueError("Нужно указать минимум фамилию и имя")
+        last_name = parts[0]
+        first_name = parts[1]
+        middle_name = " ".join(parts[2:]) if len(parts) > 2 else ""
+        for chunk in [last_name, first_name] + ([middle_name] if middle_name else []):
+            if not self._is_valid_name_part(chunk):
+                raise ValueError("Имя и фамилия могут содержать только буквы, пробелы и дефис")
+        return last_name, first_name, middle_name
+
+    def _is_valid_name_part(self, text):
+        """Проверяет имя/фамилию на допустимые символы."""
+        pattern = r"^[А-ЯЁа-яё]+([ -][А-ЯЁа-яё]+)*$"
+        return re.match(pattern, text) is not None
+
+    def _parse_birth_date(self, date_str):
+        """Преобразует строку ДД.ММ.ГГГГ в объект date."""
+        date_str = date_str.strip()
+        if not date_str:
+            raise ValueError("Укажите дату рождения в формате ДД.ММ.ГГГГ")
+        try:
+            value = datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
+        except ValueError:
+            raise ValueError("Дата должна быть в формате ДД.ММ.ГГГГ")
+        if value > datetime.date.today():
+            raise ValueError("Дата рождения не может быть в будущем")
+        return value
+
+    def _calculate_age(self, birth_date):
+        """Возвращает возраст на сегодняшний день."""
+        today = datetime.date.today()
+        age = today.year - birth_date.year
+        if (today.month, today.day) < (birth_date.month, birth_date.day):
+            age -= 1
+        return age
+
+    def _validate_teacher_age(self, birth_date):
+        """Проверяет, подходит ли возраст для учителя."""
+        age = self._calculate_age(birth_date)
+        if age < 20 or age > 86:
+            raise ValueError("Учитель должен быть старше 20 и младше 86 лет")
+
+    def _validate_student_age(self, birth_date, class_name):
+        """Проверяет возраст ученика с учётом класса."""
+        age = self._calculate_age(birth_date)
+        if age < 6 or age > 18:
+            raise ValueError("Ученик должен быть в возрасте от 6 до 18 лет")
+        grade = self._extract_grade(class_name)
+        max_age = grade + 6
+        if age > max_age:
+            raise ValueError(f"Для {class_name} максимальный возраст {max_age} лет")
+
+    def _extract_grade(self, class_name):
+        """Возвращает номер класса из строки вида 5А."""
+        digits = "".join(ch for ch in class_name if ch.isdigit())
+        if not digits:
+            raise ValueError("Некорректный номер класса")
+        grade = int(digits)
+        if grade not in self.CLASS_LETTERS:
+            raise ValueError("Такого класса нет в школе")
+        return grade
+
+    def _validate_subject(self, subject):
+        """Проверяет, что предмет входит в список допустимых."""
+        subject = subject.strip()
+        if subject not in self.ALLOWED_SUBJECTS:
+            raise ValueError("Выберите предмет из списка")
+        return subject
+
+    def _validate_teacher_classes(self, classes_str):
+        """Проверяет набор классов у учителя."""
+        if not classes_str.strip():
+            raise ValueError("Укажите хотя бы один класс")
+        classes = self._split_classes(classes_str)
+        if not classes:
+            raise ValueError("Укажите хотя бы один класс")
+        for cls in classes:
+            self._validate_class_name(cls)
+        return classes
+
+    def _validate_class_name(self, class_name):
+        """Проверяет запись класса вроде 5А."""
+        class_name = class_name.strip().upper()
+        grade = self._extract_grade(class_name)
+        letter = class_name[-1]
+        if letter not in self.CLASS_LETTERS[grade]:
+            raise ValueError(f"В {grade} классе нет литеры {letter}")
+        return f"{grade}{letter}"
+
+    def get_allowed_classes(self):
+        """Возвращает список всех возможных классов (для ComboBox)."""
+        result = []
+        for grade, letters in self.CLASS_LETTERS.items():
+            for letter in letters:
+                result.append(f"{grade}{letter}")
+            return result
 
     def get_subject_list(self):
         try:
@@ -211,9 +341,15 @@ class SchoolDataManager:
         try:
             rows = self.db.fetch_all_teachers()
             teachers = []
-            for teacher_id, last_name, first_name, middle_name, subject, classes in rows:
+            for teacher_id, last_name, first_name, middle_name, birth_date, subject, classes in rows:
                 teacher = Teacher(last_name, first_name, middle_name, subject, classes or [])
-                teachers.append({"id": teacher_id, "values": teacher.to_display_tuple()})
+                birth_str = birth_date.strftime("%d.%m.%Y") if birth_date else ""
+                values = (teacher.full_name, birth_str, teacher.subject, ", ".join(teacher.classes))
+                teachers.append({
+                    "id": teacher_id,
+                    "birth_date": birth_str,
+                    "values": values
+                })
             return teachers
         except Exception as e:
             print(f"Ошибка получения учителей: {e}")
@@ -224,9 +360,15 @@ class SchoolDataManager:
         try:
             rows = self.db.fetch_all_students()
             result = []
-            for student_id, last_name, first_name, middle_name, classes in rows:
+            for student_id, last_name, first_name, middle_name, birth_date, classes in rows:
                 student = Student(last_name, first_name, middle_name, classes or [])
-                result.append({"id": student_id, "values": student.to_display_tuple()})
+                birth_str = birth_date.strftime("%d.%m.%Y") if birth_date else ""
+                values = (student.full_name, birth_str, ", ".join(student.classes))
+                result.append({
+                    "id": student_id,
+                    "birth_date": birth_str,
+                    "values": values
+                })
             return result
         except Exception as e:
             print(f"Ошибка получения учеников: {e}")
@@ -250,62 +392,79 @@ class SchoolDataManager:
             print(f"Ошибка получения оценок: {e}")
             return []
 
-    def add_teacher_gui(self, fio, subject, classes_str):
-        """Добавление учителя из GUI"""
-        try:
-            last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = self._split_classes(classes_str)
-            teacher = Teacher(last_name, first_name, middle_name, subject, classes)
-            last, first, middle, subj, class_list = teacher.to_db_payload()
-            self.db.add_teacher(last, first, subj, class_list, middle)
-            return True
-        except Exception as e:
-            print(f"Ошибка добавления учителя: {e}")
-            return False
+    def add_teacher_gui(self, fio, subject, classes_str, birth_date_str):
+        """Добавляет нового учителя после всех проверок."""
+        last_name, first_name, middle_name = self._parse_and_validate_fio(fio)
+        subject = self._validate_subject(subject)
+        classes = self._validate_teacher_classes(classes_str)
+        birth_date = self._parse_birth_date(birth_date_str)
+        self._validate_teacher_age(birth_date)
+        if self.db.teacher_exists(last_name, first_name, middle_name, subject):
+            raise ValueError("Такой учитель уже есть в базе")
+        teacher = Teacher(last_name, first_name, middle_name, subject, classes)
+        last, first, middle, subj, class_list = teacher.to_db_payload()
+        self.db.add_teacher(last, first, subj, class_list, middle, birth_date.isoformat())
+        return True
 
-    def add_student_gui(self, fio, class_name):
-        """Добавление ученика из GUI"""
+    def add_student_gui(self, fio, class_name, birth_date_str):
+        """Добавляет ученика после проверок."""
+        last_name, first_name, middle_name = self._parse_and_validate_fio(fio)
+        class_name = self._validate_class_name(class_name)
+        birth_date = self._parse_birth_date(birth_date_str)
+        self._validate_student_age(birth_date, class_name)
+        self.db.add_student(last_name, first_name, [class_name], middle_name, birth_date.isoformat())
+        return True
+
+    def add_grade_gui(self, fio, subject, grade_value):
+        """Добавляет новую оценку."""
+        last_name, first_name, middle_name = self._parse_and_validate_fio(fio)
+        subject = self._validate_subject(subject)
         try:
-            last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = self._split_classes(class_name)
-            student = Student(last_name, first_name, middle_name, classes)
-            payload = student.to_db_payload()
-            self.db.add_student(payload[0], payload[1], payload[3], payload[2])
-            return True
-        except Exception as e:
-            print(f"Ошибка добавления ученика: {e}")
-            return False
+            grade = int(grade_value)
+        except ValueError:
+            raise ValueError("Оценка должна быть числом от 1 до 5")
+        if grade < 1 or grade > 5:
+            raise ValueError("Оценка должна быть от 1 до 5")
+        student_id = self.db.find_student_id(last_name, first_name, middle_name)
+        if not student_id:
+            raise ValueError("Ученик с таким ФИО не найден")
+        self.db.add_grade(student_id, subject, grade)
+        return True
 
     def import_teachers(self, teachers_rows):
         """Импортирует учителей из загруженного файла в базу."""
         imported = 0
         for row in teachers_rows:
-            try:
+            if len(row) >= 4:
+                fio, birth, subject, classes_str = row[0], row[1], row[2], row[3]
+            elif len(row) == 3:
                 fio, subject, classes_str = row
-            except ValueError:
+                birth = "01.01.1980"
+            else:
                 continue
-            last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = self._split_classes(classes_str)
-
-            if self.db.teacher_exists(last_name, first_name, middle_name, subject):
-                continue
-
-            self.db.add_teacher(last_name, first_name, subject, classes, middle_name)
-            imported += 1
+            try:
+                self.add_teacher_gui(fio, subject, classes_str, birth)
+                imported += 1
+            except Exception as exc:
+                print(f"Ошибка импорта учителя: {exc}")
         return imported
 
     def import_students(self, student_rows):
         """Импортирует учеников из загруженного файла."""
         imported = 0
         for row in student_rows:
-            try:
+            if len(row) >= 3:
+                fio, birth, class_str = row[0], row[1], row[2]
+            elif len(row) == 2:
                 fio, class_str = row
-            except ValueError:
+                birth = "01.09.2012"
+            else:
                 continue
-            last_name, first_name, middle_name = self._parse_fio(fio)
-            classes = self._split_classes(class_str)
-            self.db.add_student(last_name, first_name, classes, middle_name)
-            imported += 1
+            try:
+                self.add_student_gui(fio, class_str, birth)
+                imported += 1
+            except Exception as exc:
+                print(f"Ошибка импорта ученика: {exc}")
         return imported
 
     def import_grades(self, grade_rows):
@@ -327,12 +486,17 @@ class SchoolDataManager:
             imported += 1
         return imported
 
-    def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str):
+    def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str, birth_date_str):
         """Обновление учителя из GUI"""
         try:
-            last_name, first_name, middle_name = self._parse_fio(new_fio)
-            classes = [cls.strip() for cls in new_classes_str.split(",") if cls.strip()]
-            self.db.update_teachers(teacher_id, last_name, first_name, new_subject, classes, middle_name)
+            last_name, first_name, middle_name = self._parse_and_validate_fio(new_fio)
+            classes = self._validate_teacher_classes(new_classes_str)
+            subject = self._validate_subject(new_subject)
+            birth_date = self._parse_birth_date(birth_date_str)
+            self._validate_teacher_age(birth_date)
+            self.db.update_teachers(
+                teacher_id, last_name, first_name, subject, classes, middle_name, birth_date.isoformat()
+            )
             return True
         except Exception as e:
             print(f"Ошибка обновления учителя: {e}")
@@ -347,12 +511,16 @@ class SchoolDataManager:
             print(f"Ошибка удаления учителя: {e}")
             return False
 
-    def update_student_gui(self, student_id, new_fio, new_class_str):
+    def update_student_gui(self, student_id, new_fio, new_class_str, birth_date_str):
         """Обновление ученика из GUI"""
         try:
-            last_name, first_name, middle_name = self._parse_fio(new_fio)
-            classes = [cls.strip() for cls in new_class_str.split(",") if cls.strip()]
-            self.db.update_students(student_id, last_name, first_name, classes, middle_name)
+            last_name, first_name, middle_name = self._parse_and_validate_fio(new_fio)
+            class_name = self._validate_class_name(new_class_str)
+            birth_date = self._parse_birth_date(birth_date_str)
+            self._validate_student_age(birth_date, class_name)
+            self.db.update_students(
+                student_id, last_name, first_name, [class_name], middle_name, birth_date.isoformat()
+            )
             return True
         except Exception as e:
             print(f"Ошибка обновления ученика: {e}")
@@ -401,6 +569,7 @@ class SchoolDataManager:
         except Exception as e:
             print(f"Ошибка получения отчета: {e}")
             return {'good_students': [], 'bad_students': [], 'total_students': 0}
+
 
 def _pretty_write_xml(root, filename):
     """Красивое сохранение XML"""
@@ -458,9 +627,9 @@ class ReportGenerator:
             template = self.env.get_template('report_template_pdf.html')
 
             if report_type == "Учителя":
-                headers = ["ФИО", "Предмет", "Классы"]
+                headers = ["ФИО", "Дата рождения", "Предмет", "Классы"]
             elif report_type == "Ученики":
-                headers = ["ФИО", "Класс"]
+                headers = ["ФИО", "Дата рождения", "Класс"]
             else:
                 headers = ["ФИО", "Предмет", "Оценка"]
 
@@ -548,13 +717,16 @@ class SchoolApp:
         """Создаёт таблицу учителей и заполняет её."""
         self.teachers_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
-        columns = ("ФИО", "Предмет", "Классы")
+        columns = ("ФИО", "Дата рождения", "Предмет", "Классы")
         self.teachers_tree = ttk.Treeview(self.teachers_frame, columns=columns, show="headings")
 
         for col in columns:
             self.teachers_tree.heading(col, text=col,
                                        command=lambda c=col: self.sort_treeview(self.teachers_tree, c))
-            self.teachers_tree.column(col, width=200)
+            if col == "Дата рождения":
+                self.teachers_tree.column(col, width=120)
+            else:
+                self.teachers_tree.column(col, width=180)
 
         # ЗАГРУЖАЕМ ДАННЫЕ ИЗ БД ВМЕСТО ФИКСИРОВАННЫХ ДАННЫХ
         self.teachers_data = self.data_manager.get_all_teachers()
@@ -568,20 +740,23 @@ class SchoolApp:
         self.teachers_tree.pack(side="left", fill="both", expand=True)
 
         self.original_teachers_data = [row.copy() for row in self.teachers_data]
-        self.teachers_sort_options = ["ФИО", "Предмет", "Классы"]
+        self.teachers_sort_options = ["ФИО", "Дата рождения", "Предмет", "Классы"]
         self.data_source["teachers"] = "database"
 
     def create_students_table(self):
         """Создаёт таблицу учеников и заполняет её."""
         self.students_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
-        columns = ("ФИО", "Класс")
+        columns = ("ФИО", "Дата рождения", "Класс")
         self.students_tree = ttk.Treeview(self.students_frame, columns=columns, show="headings")
 
         for col in columns:
             self.students_tree.heading(col, text=col,
                                        command=lambda c=col: self.sort_treeview(self.students_tree, c))
-            self.students_tree.column(col, width=300)
+            if col == "Дата рождения":
+                self.students_tree.column(col, width=120)
+            else:
+                self.students_tree.column(col, width=260)
 
         # ЗАГРУЖАЕМ ДАННЫЕ ИЗ БД ВМЕСТО ФИКСИРОВАННЫХ ДАННЫХ
         self.students_data = self.data_manager.get_all_students()
@@ -595,7 +770,7 @@ class SchoolApp:
         self.students_tree.pack(side="left", fill="both", expand=True)
 
         self.original_students_data = [row.copy() for row in self.students_data]
-        self.students_sort_options = ["ФИО", "Класс"]
+        self.students_sort_options = ["ФИО", "Дата рождения", "Класс"]
         self.data_source["students"] = "database"
 
     def create_grades_table(self):
@@ -674,6 +849,7 @@ class SchoolApp:
             "Сохранить",
             "Открыть файл",
             "Создать файл",
+            "Добавить запись",
             "Импорт в БД",
             "Редактировать",
             "Удалить"
@@ -685,6 +861,7 @@ class SchoolApp:
             "Сохранить": "save_button.png",
             "Открыть файл": "open_file.png",
             "Создать файл": "new_file.png",
+            "Добавить запись": "new_file.png",
             "Импорт в БД": "open_file.png",
             "Редактировать": "edit_icon.png",
             "Удалить": "delete_icon.png"
@@ -697,6 +874,8 @@ class SchoolApp:
                 click_handler = self.on_open_click
             elif text == "Создать файл":
                 click_handler = self.on_new_click
+            elif text == "Добавить запись":
+                click_handler = self.on_add_click
             elif text == "Импорт в БД":
                 click_handler = self.on_import_to_db_click
             elif text == "Редактировать":
@@ -800,8 +979,9 @@ class SchoolApp:
                     teacher_element = ET.SubElement(teachers_element, "teacher")
                     values = [self.teachers_tree.set(item, col) for col in self.teachers_tree["columns"]]
                     teacher_element.set("fio", values[0])
-                    teacher_element.set("subject", values[1])
-                    teacher_element.set("classes", values[2])
+                    teacher_element.set("birth_date", values[1])
+                    teacher_element.set("subject", values[2])
+                    teacher_element.set("classes", values[3])
             elif self.current_table == "students":
                 students_element = ET.SubElement(root, "students")
 
@@ -809,7 +989,8 @@ class SchoolApp:
                     student_element = ET.SubElement(students_element, "student")
                     values = [self.students_tree.set(item, col) for col in self.students_tree["columns"]]
                     student_element.set("fio", values[0])
-                    student_element.set("class", values[1])
+                    student_element.set("birth_date", values[1])
+                    student_element.set("class", values[2])
             else:
                 grades_element = ET.SubElement(root, "grades")
 
@@ -850,7 +1031,7 @@ class SchoolApp:
                 rows = [row for row in reader]
 
                 self._apply_loaded_rows(rows)
-                return True
+            return True
         except Exception as e:
             raise FileOperationError(f"Ошибка при загрузке CSV файла: {str(e)}")
 
@@ -863,14 +1044,23 @@ class SchoolApp:
             if self.current_table == "teachers":
                 teachers_element = root.find("teachers")
                 rows = [
-                    (teacher_element.get("fio", ""), teacher_element.get("subject", ""), teacher_element.get("classes", ""))
+                    (
+                        teacher_element.get("fio", ""),
+                        teacher_element.get("birth_date", ""),
+                        teacher_element.get("subject", ""),
+                        teacher_element.get("classes", "")
+                    )
                     for teacher_element in teachers_element.findall("teacher")
                 ] if teachers_element is not None else []
                 self._apply_loaded_rows(rows)
             elif self.current_table == "students":
                 students_element = root.find("students")
                 rows = [
-                    (student_element.get("fio", ""), student_element.get("class", ""))
+                    (
+                        student_element.get("fio", ""),
+                        student_element.get("birth_date", ""),
+                        student_element.get("class", "")
+                    )
                     for student_element in students_element.findall("student")
                 ] if students_element is not None else []
                 self._apply_loaded_rows(rows)
@@ -892,14 +1082,18 @@ class SchoolApp:
 
         if self.current_table == "teachers":
             for row in rows:
-                if len(row) >= 3:
-                    normalized.append((row[0], row[1], row[2]))
+                if len(row) >= 4:
+                    normalized.append((row[0], row[1], row[2], row[3]))
+                elif len(row) == 3:
+                    normalized.append((row[0], "", row[1], row[2]))
             self._set_table_data_from_rows("teachers", normalized)
 
         elif self.current_table == "students":
             for row in rows:
-                if len(row) >= 2:
-                    normalized.append((row[0], row[1]))
+                if len(row) >= 3:
+                    normalized.append((row[0], row[1], row[2]))
+                elif len(row) == 2:
+                    normalized.append((row[0], "", row[1]))
             self._set_table_data_from_rows("students", normalized)
 
         else:
@@ -964,6 +1158,134 @@ class SchoolApp:
         self.refresh_data(table)
         self.data_source[table] = "database"
         return imported
+
+    def on_add_click(self, _):
+        """Открывает окно добавления новой записи."""
+        if self.data_source.get(self.current_table) != "database":
+            messagebox.showwarning("Добавление", "Добавлять записи можно только при соединении с базой.")
+            return
+        self._open_add_dialog()
+
+    def _open_add_dialog(self):
+        """Рисует диалог добавления."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Добавить запись")
+        dialog.geometry("420x320")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        form = tk.Frame(dialog, padx=20, pady=20)
+        form.pack(fill="both", expand=True)
+
+        widgets = {}
+
+        if self.current_table == "teachers":
+            tk.Label(form, text="ФИО:").grid(row=0, column=0, sticky="w", pady=5)
+            fio_entry = tk.Entry(form, width=30)
+            fio_entry.grid(row=0, column=1, pady=5)
+            widgets["fio"] = fio_entry
+
+            tk.Label(form, text="Предмет:").grid(row=1, column=0, sticky="w", pady=5)
+            subject_combo = ttk.Combobox(form, values=self.data_manager.ALLOWED_SUBJECTS, state="readonly", width=27)
+            if self.data_manager.ALLOWED_SUBJECTS:
+                subject_combo.current(0)
+            subject_combo.grid(row=1, column=1, pady=5)
+            widgets["subject"] = subject_combo
+
+            tk.Label(form, text="Классы:").grid(row=2, column=0, sticky="w", pady=5)
+            classes_entry = tk.Entry(form, width=30)
+            classes_entry.grid(row=2, column=1, pady=5)
+            widgets["classes"] = classes_entry
+
+            tk.Label(form, text="Дата рождения:").grid(row=3, column=0, sticky="w", pady=5)
+            birth_entry = tk.Entry(form, width=30)
+            birth_entry.insert(0, "01.01.1980")
+            birth_entry.grid(row=3, column=1, pady=5)
+            widgets["birth"] = birth_entry
+
+        elif self.current_table == "students":
+            tk.Label(form, text="ФИО:").grid(row=0, column=0, sticky="w", pady=5)
+            fio_entry = tk.Entry(form, width=30)
+            fio_entry.grid(row=0, column=1, pady=5)
+            widgets["fio"] = fio_entry
+
+            tk.Label(form, text="Класс:").grid(row=1, column=0, sticky="w", pady=5)
+            classes_list = self.data_manager.get_allowed_classes()
+            class_combo = ttk.Combobox(form, values=classes_list, state="readonly", width=27)
+            if classes_list:
+                class_combo.current(0)
+            class_combo.grid(row=1, column=1, pady=5)
+            widgets["class"] = class_combo
+
+            tk.Label(form, text="Дата рождения:").grid(row=2, column=0, sticky="w", pady=5)
+            birth_entry = tk.Entry(form, width=30)
+            birth_entry.insert(0, "15.05.2012")
+            birth_entry.grid(row=2, column=1, pady=5)
+            widgets["birth"] = birth_entry
+
+        else:
+            tk.Label(form, text="ФИО ученика:").grid(row=0, column=0, sticky="w", pady=5)
+            fio_entry = tk.Entry(form, width=30)
+            fio_entry.grid(row=0, column=1, pady=5)
+            widgets["fio"] = fio_entry
+
+            tk.Label(form, text="Предмет:").grid(row=1, column=0, sticky="w", pady=5)
+            subject_combo = ttk.Combobox(form, values=self.data_manager.ALLOWED_SUBJECTS, state="readonly", width=27)
+            if self.data_manager.ALLOWED_SUBJECTS:
+                subject_combo.current(0)
+            subject_combo.grid(row=1, column=1, pady=5)
+            widgets["subject"] = subject_combo
+
+            tk.Label(form, text="Оценка (1-5):").grid(row=2, column=0, sticky="w", pady=5)
+            grade_entry = tk.Entry(form, width=30)
+            grade_entry.grid(row=2, column=1, pady=5)
+            widgets["grade"] = grade_entry
+
+        btn_frame = tk.Frame(dialog, pady=10)
+        btn_frame.pack()
+
+        tk.Button(btn_frame, text="Сохранить",
+                  command=lambda: self._save_new_record(dialog, widgets)).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Отмена", command=dialog.destroy).pack(side="left", padx=5)
+
+    def _save_new_record(self, dialog, widgets):
+        """Сохраняет данные из диалога добавления."""
+        try:
+            if self.current_table == "teachers":
+                fio = widgets["fio"].get().strip()
+                subject = widgets["subject"].get().strip()
+                classes = widgets["classes"].get().strip()
+                birth = widgets["birth"].get().strip()
+                if not fio or not subject or not classes or not birth:
+                    raise ValueError("Заполните все поля")
+                self.data_manager.add_teacher_gui(fio, subject, classes, birth)
+                self.refresh_data("teachers")
+            elif self.current_table == "students":
+                fio = widgets["fio"].get().strip()
+                class_name = widgets["class"].get().strip()
+                birth = widgets["birth"].get().strip()
+                if not fio or not class_name or not birth:
+                    raise ValueError("Заполните все поля")
+                self.data_manager.add_student_gui(fio, class_name, birth)
+                self.refresh_data("students")
+            else:
+                fio = widgets["fio"].get().strip()
+                subject = widgets["subject"].get().strip()
+                grade = widgets["grade"].get().strip()
+                if not fio or not subject or not grade:
+                    raise ValueError("Заполните все поля")
+                self.data_manager.add_grade_gui(fio, subject, grade)
+                self.refresh_data("grades")
+        except ValueError as exc:
+            messagebox.showwarning("Добавление", str(exc))
+            return
+        except Exception as exc:
+            messagebox.showerror("Добавление", f"Не удалось добавить запись: {exc}")
+            return
+
+        dialog.destroy()
+        messagebox.showinfo("Добавление", "Запись успешно добавлена")
 
     def validate_search_input(self, search_term):
         """Проверяет, что поле поиска не пустое."""
@@ -1121,16 +1443,22 @@ class SchoolApp:
                 fio_entry.insert(0, current_values[0])
                 entry_widgets['fio'] = fio_entry
 
-                tk.Label(form_frame, text="Предмет:").grid(row=1, column=0, sticky="w", pady=5)
+                tk.Label(form_frame, text="Дата рождения:").grid(row=1, column=0, sticky="w", pady=5)
+                birth_entry = tk.Entry(form_frame, width=30)
+                birth_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
+                birth_entry.insert(0, current_values[1])
+                entry_widgets['birth'] = birth_entry
+
+                tk.Label(form_frame, text="Предмет:").grid(row=2, column=0, sticky="w", pady=5)
                 subject_entry = tk.Entry(form_frame, width=30)
-                subject_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
-                subject_entry.insert(0, current_values[1])
+                subject_entry.grid(row=2, column=1, pady=5, padx=(10, 0))
+                subject_entry.insert(0, current_values[2])
                 entry_widgets['subject'] = subject_entry
 
-                tk.Label(form_frame, text="Классы:").grid(row=2, column=0, sticky="w", pady=5)
+                tk.Label(form_frame, text="Классы:").grid(row=3, column=0, sticky="w", pady=5)
                 classes_entry = tk.Entry(form_frame, width=30)
-                classes_entry.grid(row=2, column=1, pady=5, padx=(10, 0))
-                classes_entry.insert(0, current_values[2])
+                classes_entry.grid(row=3, column=1, pady=5, padx=(10, 0))
+                classes_entry.insert(0, current_values[3])
                 entry_widgets['classes'] = classes_entry
 
             elif self.current_table == "students":
@@ -1140,10 +1468,16 @@ class SchoolApp:
                 fio_entry.insert(0, current_values[0])
                 entry_widgets['fio'] = fio_entry
 
-                tk.Label(form_frame, text="Класс:").grid(row=1, column=0, sticky="w", pady=5)
+                tk.Label(form_frame, text="Дата рождения:").grid(row=1, column=0, sticky="w", pady=5)
+                birth_entry = tk.Entry(form_frame, width=30)
+                birth_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
+                birth_entry.insert(0, current_values[1])
+                entry_widgets['birth'] = birth_entry
+
+                tk.Label(form_frame, text="Класс:").grid(row=2, column=0, sticky="w", pady=5)
                 class_entry = tk.Entry(form_frame, width=30)
-                class_entry.grid(row=1, column=1, pady=5, padx=(10, 0))
-                class_entry.insert(0, current_values[1])
+                class_entry.grid(row=2, column=1, pady=5, padx=(10, 0))
+                class_entry.insert(0, current_values[2])
                 entry_widgets['class'] = class_entry
             else:
                 tk.Label(form_frame, text="ФИО:").grid(row=0, column=0, sticky="w", pady=5)
@@ -1206,6 +1540,7 @@ class SchoolApp:
         try:
             if self.current_table == "teachers":
                 new_fio = entry_widgets['fio'].get().strip()
+                new_birth = entry_widgets['birth'].get().strip()
                 new_subject = entry_widgets['subject'].get().strip()
                 new_classes = entry_widgets['classes'].get().strip()
 
@@ -1214,30 +1549,33 @@ class SchoolApp:
 
                 if self.data_source["teachers"] == "database":
                     teacher_id = int(selected_item)
-                    success = self.data_manager.update_teacher_gui(teacher_id, new_fio, new_subject, new_classes)
+                    success = self.data_manager.update_teacher_gui(
+                        teacher_id, new_fio, new_subject, new_classes, new_birth
+                    )
                     if not success:
                         raise FileOperationError("Не удалось обновить запись учителя")
                     self.refresh_data("teachers")
                 else:
-                    new_values = (new_fio, new_subject, new_classes)
+                    new_values = (new_fio, new_birth, new_subject, new_classes)
                     tree.item(selected_item, values=new_values)
                     self._sync_table_from_tree("teachers")
 
             elif self.current_table == "students":
                 new_fio = entry_widgets['fio'].get().strip()
                 new_class = entry_widgets['class'].get().strip()
+                new_birth = entry_widgets['birth'].get().strip()
 
                 if not new_fio:
                     raise EmptySearchError("Поле 'ФИО' не может быть пустым")
 
                 if self.data_source["students"] == "database":
                     student_id = int(selected_item)
-                    success = self.data_manager.update_student_gui(student_id, new_fio, new_class)
+                    success = self.data_manager.update_student_gui(student_id, new_fio, new_class, new_birth)
                     if not success:
                         raise FileOperationError("Не удалось обновить запись ученика")
                     self.refresh_data("students")
                 else:
-                    new_values = (new_fio, new_class)
+                    new_values = (new_fio, new_birth, new_class)
                     tree.item(selected_item, values=new_values)
                     self._sync_table_from_tree("students")
 
@@ -1732,16 +2070,20 @@ class SchoolApp:
             tree = self.teachers_tree
             if sort_by == "ФИО":
                 column_index = 0
-            elif sort_by == "Предмет":
+            elif sort_by == "Дата рождения":
                 column_index = 1
-            else:
+            elif sort_by == "Предмет":
                 column_index = 2
+            else:
+                column_index = 3
         elif self.current_table == "students":
             tree = self.students_tree
             if sort_by == "ФИО":
                 column_index = 0
-            else:
+            elif sort_by == "Дата рождения":
                 column_index = 1
+            else:
+                column_index = 2
         else:
             tree = self.grades_tree
             if sort_by == "ФИО":
@@ -1804,19 +2146,25 @@ class SchoolApp:
         """Возвращает ключ сортировки для значения в зависимости от типа колонки"""
         value_str = str(value).lower()
 
-        if self.current_table == "students" and column_index == 1:
+        if self.current_table in ("teachers", "students") and column_index == 1:
+            try:
+                dt = datetime.datetime.strptime(value, "%d.%m.%Y")
+                return (dt,)
+            except ValueError:
+                return (value_str,)
+
+        if self.current_table == "students" and column_index == 2:
             return self.parse_single_class(value)
 
-        elif self.current_table == "teachers" and column_index == 2:
+        if self.current_table == "teachers" and column_index == 3:
             return self.parse_teacher_classes(value)
 
-        elif self.current_table == "grades" and column_index == 2:
+        if self.current_table == "grades" and column_index == 2:
             try:
                 return (int(value),)
             except (TypeError, ValueError):
                 return (value_str,)
 
-        else:
             return (value_str,)
 
     def sort_treeview(self, tree, column):

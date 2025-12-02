@@ -1,12 +1,38 @@
-"""Генератор XML для учителей, учеников и оценок."""
-
 """Генерирует наборы XML-файлов для импорта в приложение."""
 
 import random
+import datetime
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 
 random.seed(7)
+TODAY = datetime.date.today()
+
+
+def random_birth_date(min_age, max_age):
+    """Возвращает дату рождения (строка) с нужным диапазоном возраста."""
+    max_age = max(min_age, max_age)
+    start_year = TODAY.year - max_age
+    end_year = TODAY.year - min_age
+    start_date = datetime.date(start_year, 1, 1)
+    end_date = datetime.date(end_year, 12, 31)
+    days_range = (end_date - start_date).days
+    if days_range < 0:
+        days_range = 0
+    offset = random.randint(0, days_range)
+    return (start_date + datetime.timedelta(days=offset)).strftime("%d.%m.%Y")
+
+
+def student_birth_for_grade(grade):
+    """Возвращает дату рождения для ученика указанного класса."""
+    max_age = grade + 6
+    min_age = max(6, max_age - 1)
+    return random_birth_date(min_age, max_age)
+
+
+def teacher_birth_date():
+    """Возвращает дату рождения учителя (20-60 лет)."""
+    return random_birth_date(25, 60)
 
 
 first_names = [
@@ -129,7 +155,8 @@ for grade in range(1, 5):
         teacher_records.append({
             "fio": next_name(teacher_index),
             "subject": "Начальные классы",
-            "classes": f"{grade}{letter}"
+            "classes": f"{grade}{letter}",
+            "birth_date": teacher_birth_date()
         })
         teacher_index += 1
 
@@ -149,7 +176,8 @@ for subject in subjects_for_teachers:
         teacher_records.append({
             "fio": next_name(teacher_index),
             "subject": subject,
-            "classes": ", ".join(classes)
+            "classes": ", ".join(classes),
+            "birth_date": teacher_birth_date()
         })
         teacher_index += 1
 
@@ -166,7 +194,8 @@ for grade, letters in class_structure.items():
                 "fio": fio,
                 "class": class_name,
                 "grade": grade,
-                "subjects": subjects_for_grade(grade)
+                "subjects": subjects_for_grade(grade),
+                "birth_date": student_birth_for_grade(grade)
             })
             student_index += 1
 
@@ -192,6 +221,7 @@ def write_teachers(filename):
     for teacher in teacher_records:
         el = SubElement(teachers_el, "teacher")
         el.set("fio", teacher["fio"])
+        el.set("birth_date", teacher["birth_date"])
         el.set("subject", teacher["subject"])
         el.set("classes", teacher["classes"])
     ElementTree(root).write(filename, encoding="utf-8", xml_declaration=True)
@@ -204,6 +234,7 @@ def write_students(filename):
     for student in students:
         el = SubElement(students_el, "student")
         el.set("fio", student["fio"])
+        el.set("birth_date", student["birth_date"])
         el.set("class", student["class"])
     ElementTree(root).write(filename, encoding="utf-8", xml_declaration=True)
 

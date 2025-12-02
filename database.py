@@ -55,6 +55,7 @@ class SchoolDatabase:
                                 last_name VARCHAR(50),
                                 first_name VARCHAR(50),
                                 middle_name VARCHAR(50),
+                                birth_date DATE,
                                 class_name TEXT[]
                             );
                         """
@@ -64,6 +65,7 @@ class SchoolDatabase:
                                 last_name VARCHAR(50),
                                 first_name VARCHAR(50),
                                 middle_name VARCHAR(50),
+                                birth_date DATE,
                                 subject VARCHAR(50),
                                 classes TEXT[]
                             );
@@ -80,37 +82,40 @@ class SchoolDatabase:
         self.DB_CURSOR.execute(students_table)
         self.DB_CURSOR.execute(teachers_table)
         self.DB_CURSOR.execute(grades_table)
+        self.DB_CURSOR.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE")
+        self.DB_CURSOR.execute("ALTER TABLE teachers ADD COLUMN IF NOT EXISTS birth_date DATE")
         self.DB_CONNECTION.commit()
 
-    def add_student(self, last_name, first_name, class_name,  middle_name=""):
+    def add_student(self, last_name, first_name, class_name, middle_name="", birth_date=None):
         """Добавляет ученика и возвращает его id."""
         insert_student_query = """
                         INSERT INTO students (last_name, first_name,
-                        middle_name, class_name)
-                        VALUES (%s, %s, %s, %s)
+                        middle_name, birth_date, class_name)
+                        VALUES (%s, %s, %s, %s, %s)
                         RETURNING id
                         """
         class_array = self._prepare_array(class_name)
-
         self.DB_CURSOR.execute(
             insert_student_query,
-            (last_name, first_name, middle_name, class_array)
+            (last_name, first_name, middle_name, birth_date, class_array)
         )
         student_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
         return student_id
 
     def update_students(self, student_id, last_name, first_name,
-                        class_name, middle_name=""):
+                        class_name, middle_name="", birth_date=None):
         """Обновляет данные ученика."""
         update_student_query = """
             UPDATE students SET last_name = %s, first_name = %s, class_name = %s,
-            middle_name = %s
+            middle_name = %s, birth_date = %s
             WHERE id = %s
         """
         class_array = self._prepare_array(class_name)
-        self.DB_CURSOR.execute(update_student_query,(last_name, first_name, class_array,
-                                                     middle_name, student_id))
+        self.DB_CURSOR.execute(
+            update_student_query,
+            (last_name, first_name, class_array, middle_name, birth_date, student_id)
+        )
         self.DB_CONNECTION.commit()
 
     def get_students_count(self, class_name=None):
@@ -170,36 +175,36 @@ class SchoolDatabase:
         self.DB_CURSOR.execute("DELETE FROM students WHERE id = %s", (student_id,))
         self.DB_CONNECTION.commit()
 
-    def add_teacher(self, last_name, first_name, subject, classes, middle_name=""):
+    def add_teacher(self, last_name, first_name, subject, classes, middle_name="", birth_date=None):
         """Добавляет учителя и возвращает его id."""
         add_teacher_query = """
                                 INSERT INTO teachers (last_name, first_name, 
-                                middle_name, subject, classes)
-                                VALUES (%s, %s, %s, %s, %s)
+                                middle_name, birth_date, subject, classes)
+                                VALUES (%s, %s, %s, %s, %s, %s)
                                 RETURNING id
                                 """
         classes_array = self._prepare_array(classes)
 
         self.DB_CURSOR.execute(
             add_teacher_query,
-            (last_name, first_name, middle_name, subject, classes_array)
+            (last_name, first_name, middle_name, birth_date, subject, classes_array)
         )
         teacher_id = self.DB_CURSOR.fetchone()[0]
         self.DB_CONNECTION.commit()
         return teacher_id
 
     def update_teachers(self, teacher_id, last_name, first_name,
-                        subject, classes, middle_name=""):
+                        subject, classes, middle_name="", birth_date=None):
         """Обновляет данные учителя."""
         update_teachers_query = """
                     UPDATE teachers SET last_name = %s, first_name = %s, subject = %s,
-                    classes = %s, middle_name = %s
+                    classes = %s, middle_name = %s, birth_date = %s
                     WHERE id = %s
                 """
         classes_array = self._prepare_array(classes)
         self.DB_CURSOR.execute(
             update_teachers_query,
-            (last_name, first_name, subject, classes_array, middle_name, teacher_id)
+            (last_name, first_name, subject, classes_array, middle_name, birth_date, teacher_id)
         )
         self.DB_CONNECTION.commit()
 
@@ -317,12 +322,12 @@ class SchoolDatabase:
 
     def fetch_all_teachers(self):
         """Возвращает все строки из таблицы teachers."""
-        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, subject, classes FROM teachers")
+        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, birth_date, subject, classes FROM teachers")
         return self.DB_CURSOR.fetchall()
 
     def fetch_all_students(self):
         """Возвращает все строки из таблицы students."""
-        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, class_name FROM students")
+        self.DB_CURSOR.execute("SELECT id, last_name, first_name, middle_name, birth_date, class_name FROM students")
         return self.DB_CURSOR.fetchall()
 
     def get_subject_list(self):
