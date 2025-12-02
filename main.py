@@ -777,8 +777,8 @@ class SchoolApp:
             "Сохранить": "save_button.png",
             "Открыть файл": "open_file.png",
             "Создать файл": "new_file.png",
-            "Добавить запись": "new_file.png",
-            "Импорт в БД": "open_file.png",
+            "Добавить запись": "new_line_inage.png",
+            "Импорт в БД": "db_import.png",
             "Редактировать": "edit_icon.png",
             "Удалить": "delete_icon.png"
         }
