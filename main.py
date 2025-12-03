@@ -226,7 +226,7 @@ class SchoolDataManager:
         for grade, letters in self.CLASS_LETTERS.items():
             for letter in letters:
                 result.append(f"{grade}{letter}")
-            return result
+        return result
 
     def get_subject_list(self):
         try:
@@ -501,7 +501,7 @@ class SchoolDataManager:
                 raise ValueError("Указанный ученик не найден в базе")
 
             self.db.update_grade(grade_id, student_id, subject_name, grade_int)
-                return True
+            return True
         except Exception as e:
             print(f"Ошибка обновления оценки: {e}")
             return False
@@ -940,10 +940,10 @@ class SchoolApp:
                     tree = self.grades_tree
 
                 headers = [tree.heading(col)["text"] for col in tree["columns"]]
-                    writer.writerow(headers)
-                    for item in tree.get_children():
-                        row = [tree.set(item, col) for col in tree["columns"]]
-                        writer.writerow(row)
+                writer.writerow(headers)
+                for item in tree.get_children():
+                    row = [tree.set(item, col) for col in tree["columns"]]
+                    writer.writerow(row)
 
             return True
         except Exception as e:
@@ -1078,7 +1078,7 @@ class SchoolApp:
                     normalized.append((row[0], "", row[1]))
             self.set_table_data_from_rows("students", normalized)
 
-            else:
+        else:
             for row in rows:
                 if len(row) >= 3:
                     normalized.append((row[0], row[1], row[2]))
@@ -1574,7 +1574,7 @@ class SchoolApp:
                     self.refresh_data("grades")
                 else:
                     new_values = (new_fio, new_birth, new_class)
-                tree.item(selected_item, values=new_values)
+                    tree.item(selected_item, values=new_values)
                     self.sync_table_from_tree("students")
 
             else:
@@ -1983,7 +1983,7 @@ class SchoolApp:
                 self.refresh_data("grades")
             else:
                 for item in selected_items:
-            tree.delete(item)
+                    tree.delete(item)
                 self.sync_table_from_tree("grades")
 
     def perform_search(self, search_term):
@@ -2070,7 +2070,7 @@ class SchoolApp:
         elif self.current_table == "students":
             tree = self.students_tree
             sort_map = self.student_sort_map
-            else:
+        else:
             tree = self.grades_tree
             sort_map = self.grade_sort_map
 
@@ -2158,7 +2158,7 @@ class SchoolApp:
             try:
                 if value_str:
                     return (int(value_str),)
-        else:
+                else:
                     return (0,)
             except (TypeError, ValueError):
                 return (value_str.lower() if value_str else "",)
