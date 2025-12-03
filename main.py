@@ -2091,26 +2091,42 @@ class SchoolApp:
 
     def get_sort_key(self, value, column_index):
         """Возвращает ключ сортировки для значения в зависимости от типа колонки"""
-        value_str = str(value).lower()
+        if value is None:
+            value_str = ""
+        else:
+            value_str = str(value).strip()
 
+        # Сортировка по дате рождения
         if self.current_table in ("teachers", "students") and column_index == 1:
             try:
-                dt = datetime.datetime.strptime(value, "%d.%m.%Y")
-                return (dt,)
+                if value_str:
+                    dt = datetime.datetime.strptime(value_str, "%d.%m.%Y")
+                    return (dt,)
+                else:
+                    return (datetime.datetime.min,)
             except ValueError:
-                return (value_str,)
+                return (value_str.lower() if value_str else "",)
 
+        # Сортировка по классу для учеников
         if self.current_table == "students" and column_index == 2:
-            return self.parse_single_class(value)
+            return self.parse_single_class(value_str)
 
+        # Сортировка по классам для учителей
         if self.current_table == "teachers" and column_index == 3:
-            return self.parse_teacher_classes(value)
+            return self.parse_teacher_classes(value_str)
 
+        # Сортировка по оценке
         if self.current_table == "grades" and column_index == 2:
             try:
-                return (int(value),)
+                if value_str:
+                    return (int(value_str),)
+                else:
+                    return (0,)
             except (TypeError, ValueError):
-                return (value_str,)
+                return (value_str.lower() if value_str else "",)
+
+        # Для всех остальных случаев (ФИО, предметы) - строковая сортировка
+        return (value_str.lower() if value_str else "",)
 
 
     def on_column_sort(self, table, column_id):
@@ -2149,10 +2165,12 @@ class SchoolApp:
             sort_key = self.get_sort_key(value, column_index)
             items.append((sort_key, item))
 
+        # Сортировка с обработкой разных типов
         try:
             items.sort(key=lambda x: x[0], reverse=reverse)
-        except TypeError:
-            items.sort(key=lambda x: str(x[0]), reverse=reverse)
+        except (TypeError, ValueError):
+            # Если возникла ошибка при сравнении, используем строковую сортировку
+            items.sort(key=lambda x: str(x[0]).lower(), reverse=reverse)
 
         for index, (_, item) in enumerate(items):
             tree.move(item, '', index)
