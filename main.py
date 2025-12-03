@@ -148,16 +148,38 @@ class SchoolDataManager:
     def validate_teacher_age(self, birth_date):
         """Проверяет, подходит ли возраст для учителя."""
         age = self.calculate_age(birth_date)
-        if age < 20 or age > 86:
-            raise ValueError("Учитель должен быть старше 20 и младше 86 лет")
+        if age < 20:
+            raise ValueError("Учитель не может быть младше 20 лет")
+        if age > 86:
+            raise ValueError("Учитель не может быть старше 86 лет")
 
     def validate_student_age(self, birth_date, class_name):
         """Проверяет возраст ученика с учётом класса."""
         age = self.calculate_age(birth_date)
-        if age < 6 or age > 18:
-            raise ValueError("Ученик должен быть в возрасте от 6 до 18 лет")
         grade = self.extract_grade(class_name)
-        max_age = grade + 6
+        
+        # Минимальный и максимальный возраст для каждого класса
+        age_limits = {
+            1: (6, 8),
+            2: (7, 9),
+            3: (8, 10),
+            4: (9, 11),
+            5: (10, 12),
+            6: (11, 13),
+            7: (12, 14),
+            8: (13, 15),
+            9: (14, 16),
+            10: (15, 17),
+            11: (16, 18)
+        }
+        
+        if grade not in age_limits:
+            raise ValueError(f"Некорректный номер класса: {grade}")
+        
+        min_age, max_age = age_limits[grade]
+        
+        if age < min_age:
+            raise ValueError(f"Для {class_name} минимальный возраст {min_age} лет")
         if age > max_age:
             raise ValueError(f"Для {class_name} максимальный возраст {max_age} лет")
 
