@@ -204,7 +204,7 @@ class SchoolDataManager:
         for grade, letters in self.CLASS_LETTERS.items():
             for letter in letters:
                 result.append(f"{grade}{letter}")
-            return result
+        return result
 
     def get_subject_list(self):
         try:
@@ -220,6 +220,17 @@ class SchoolDataManager:
         except Exception as e:
             print(f"Ошибка получения списка учителей: {e}")
             return []
+
+    def get_student_list(self):
+        try:
+            rows = self.db.fetch_all_students()
+            return [self.format_fio(row[1], row[2], row[3]).strip() for row in rows]
+        except Exception as e:
+            print(f"Ошибка получения списка учеников: {e}")
+            return []
+
+    def get_grade_subjects(self):
+        return [subject for subject in self.ALLOWED_SUBJECTS if subject != "Начальные классы"]
 
     def get_class_list(self):
         try:
@@ -337,6 +348,8 @@ class SchoolDataManager:
         """Добавляет новую оценку."""
         last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
         subject = self.validate_subject(subject)
+        if subject == "Начальные классы":
+            raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
         try:
             grade = int(grade_value)
         except ValueError:
@@ -392,16 +405,13 @@ class SchoolDataManager:
             if len(row) < 3:
                 continue
             fio, subject, grade_value = row
-            last_name, first_name, middle_name = self.parse_fio(fio)
-            student_id = self.db.find_student_id(last_name, first_name, middle_name)
-            if not student_id:
-                student_id = self.db.add_student(last_name, first_name, [], middle_name)
-            try:
-                grade_int = int(grade_value)
-            except ValueError:
+            if subject.strip() == "Начальные классы":
                 continue
-            self.db.add_grade(student_id, subject, grade_int)
-            imported += 1
+            try:
+                self.add_grade_gui(fio, subject, grade_value)
+                imported += 1
+            except Exception as exc:
+                print(f"Ошибка импорта оценки: {exc}")
         return imported
 
     def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str, birth_date_str):
@@ -460,7 +470,10 @@ class SchoolDataManager:
             if grade_int < 1 or grade_int > 5:
                 raise ValueError("Оценка должна быть от 1 до 5")
 
-            last_name, first_name, middle_name = self.parse_fio(fio)
+            last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
+            subject_name = self.validate_subject(subject_name)
+            if subject_name == "Начальные классы":
+                raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
             student_id = self.db.find_student_id(last_name, first_name, middle_name)
             if not student_id:
                 raise ValueError("Указанный ученик не найден в базе")
@@ -613,6 +626,8 @@ class SchoolApp:
         }
         self.loaded_import_data = {"teachers": [], "students": [], "grades": []}
         self.info_window = None
+        self.sort_state = {"teachers": {}, "students": {}, "grades": {}}
+        self.sort_option_maps = {}
 
         self.data_manager = SchoolDataManager()
 
@@ -640,7 +655,7 @@ class SchoolApp:
 
         for col in columns:
             self.teachers_tree.heading(col, text=col,
-                                       command=lambda c=col: self.sort_treeview(self.teachers_tree, c))
+                                       command=lambda c=col: self.on_column_sort("teachers", c))
             if col == "Дата рождения":
                 self.teachers_tree.column(col, width=120)
             else:
@@ -658,7 +673,18 @@ class SchoolApp:
         self.teachers_tree.pack(side="left", fill="both", expand=True)
 
         self.original_teachers_data = [row.copy() for row in self.teachers_data]
-        self.teachers_sort_options = ["ФИО", "Дата рождения", "Предмет", "Классы"]
+        self.teacher_sort_map = {
+            "ФИО (А-Я)": (0, False),
+            "ФИО (Я-А)": (0, True),
+            "Дата рождения (старшие первыми)": (1, False),
+            "Дата рождения (младшие первыми)": (1, True),
+            "Предмет (А-Я)": (2, False),
+            "Предмет (Я-А)": (2, True),
+            "Классы (А-Я)": (3, False),
+            "Классы (Я-А)": (3, True),
+        }
+        self.teachers_sort_options = list(self.teacher_sort_map.keys())
+        self.sort_option_maps["teachers"] = self.teacher_sort_map
         self.data_source["teachers"] = "database"
 
     def create_students_table(self):
@@ -670,7 +696,7 @@ class SchoolApp:
 
         for col in columns:
             self.students_tree.heading(col, text=col,
-                                       command=lambda c=col: self.sort_treeview(self.students_tree, c))
+                                       command=lambda c=col: self.on_column_sort("students", c))
             if col == "Дата рождения":
                 self.students_tree.column(col, width=120)
             else:
@@ -687,7 +713,16 @@ class SchoolApp:
         self.students_tree.pack(side="left", fill="both", expand=True)
 
         self.original_students_data = [row.copy() for row in self.students_data]
-        self.students_sort_options = ["ФИО", "Дата рождения", "Класс"]
+        self.student_sort_map = {
+            "ФИО (А-Я)": (0, False),
+            "ФИО (Я-А)": (0, True),
+            "Дата рождения (старшие первыми)": (1, False),
+            "Дата рождения (младшие первыми)": (1, True),
+            "Класс (от меньшего к большему)": (2, False),
+            "Класс (от большего к меньшему)": (2, True),
+        }
+        self.students_sort_options = list(self.student_sort_map.keys())
+        self.sort_option_maps["students"] = self.student_sort_map
         self.data_source["students"] = "database"
 
     def create_grades_table(self):
@@ -699,7 +734,7 @@ class SchoolApp:
 
         for col in columns:
             self.grades_tree.heading(col, text=col,
-                                     command=lambda c=col: self.sort_treeview(self.grades_tree, c))
+                                     command=lambda c=col: self.on_column_sort("grades", c))
             self.grades_tree.column(col, width=200)
 
         self.grades_data = self.data_manager.get_all_grades()
@@ -713,7 +748,16 @@ class SchoolApp:
         self.grades_tree.pack(side="left", fill="both", expand=True)
 
         self.original_grades_data = [row.copy() for row in self.grades_data]
-        self.grades_sort_options = ["ФИО", "Предмет", "Оценка"]
+        self.grade_sort_map = {
+            "ФИО (А-Я)": (0, False),
+            "ФИО (Я-А)": (0, True),
+            "Предмет (А-Я)": (1, False),
+            "Предмет (Я-А)": (1, True),
+            "Оценка (от меньшей к большей)": (2, False),
+            "Оценка (от большей к меньшей)": (2, True),
+        }
+        self.grades_sort_options = list(self.grade_sort_map.keys())
+        self.sort_option_maps["grades"] = self.grade_sort_map
         self.data_source["grades"] = "database"
 
     def setup_styles(self):
@@ -1142,13 +1186,15 @@ class SchoolApp:
 
         else:
             tk.Label(form, text="ФИО ученика:").grid(row=0, column=0, sticky="w", pady=5)
-            fio_entry = tk.Entry(form, width=30)
-            fio_entry.grid(row=0, column=1, pady=5)
-            widgets["fio"] = fio_entry
+            student_names = self.data_manager.get_student_list()
+            fio_combo = ttk.Combobox(form, values=student_names, width=27)
+            fio_combo.grid(row=0, column=1, pady=5)
+            widgets["fio"] = fio_combo
 
             tk.Label(form, text="Предмет:").grid(row=1, column=0, sticky="w", pady=5)
-            subject_combo = ttk.Combobox(form, values=self.data_manager.ALLOWED_SUBJECTS, state="readonly", width=27)
-            if self.data_manager.ALLOWED_SUBJECTS:
+            grade_subjects = self.data_manager.get_grade_subjects()
+            subject_combo = ttk.Combobox(form, values=grade_subjects, state="readonly", width=27)
+            if grade_subjects:
                 subject_combo.current(0)
             subject_combo.grid(row=1, column=1, pady=5)
             widgets["subject"] = subject_combo
@@ -1982,32 +2028,19 @@ class SchoolApp:
 
         if self.current_table == "teachers":
             tree = self.teachers_tree
-            if sort_by == "ФИО":
-                column_index = 0
-            elif sort_by == "Дата рождения":
-                column_index = 1
-            elif sort_by == "Предмет":
-                column_index = 2
-            else:
-                column_index = 3
+            sort_map = self.teacher_sort_map
         elif self.current_table == "students":
             tree = self.students_tree
-            if sort_by == "ФИО":
-                column_index = 0
-            elif sort_by == "Дата рождения":
-                column_index = 1
-            else:
-                column_index = 2
+            sort_map = self.student_sort_map
         else:
             tree = self.grades_tree
-            if sort_by == "ФИО":
-                column_index = 0
-            elif sort_by == "Предмет":
-                column_index = 1
-            else:
-                column_index = 2
+            sort_map = self.grade_sort_map
 
-        self.sort_treeview(tree, column_index)
+        column_info = sort_map.get(sort_by)
+        if not column_info:
+            return
+        column_index, reverse = column_info
+        self.sort_treeview(tree, column_index, reverse)
 
     def parse_single_class(self, class_str):
         """Парсинг строки с классами для более точной сортировки"""
@@ -2080,7 +2113,21 @@ class SchoolApp:
                 return (value_str,)
 
 
-    def sort_treeview(self, tree, column):
+    def on_column_sort(self, table, column_id):
+        """Переключает направление сортировки при клике по заголовку."""
+        if table == "teachers":
+            tree = self.teachers_tree
+        elif table == "students":
+            tree = self.students_tree
+        else:
+            tree = self.grades_tree
+
+        state = self.sort_state[table]
+        reverse = state.get(column_id, False)
+        self.sort_treeview(tree, column_id, reverse)
+        state[column_id] = not reverse
+
+    def sort_treeview(self, tree, column, reverse=False):
         """Выполняет сортировку данных по указанной колонке"""
         if isinstance(column, str):
             columns = tree['columns']
@@ -2103,9 +2150,9 @@ class SchoolApp:
             items.append((sort_key, item))
 
         try:
-            items.sort(key=lambda x: x[0])
+            items.sort(key=lambda x: x[0], reverse=reverse)
         except TypeError:
-            items.sort(key=lambda x: str(x[0]))
+            items.sort(key=lambda x: str(x[0]), reverse=reverse)
 
         for index, (_, item) in enumerate(items):
             tree.move(item, '', index)
