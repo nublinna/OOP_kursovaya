@@ -531,10 +531,12 @@ class SchoolDataManager:
                 # ФИО не изменилось, просто обновляем оценку
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             
-                return True
+            return True
         except Exception as e:
-            print(f"Ошибка обновления оценки: {e}")
-            return False
+            error_msg = str(e)
+            print(f"Ошибка обновления оценки: {error_msg}")
+            # Пробрасываем исключение дальше, чтобы пользователь видел ошибку
+            raise ValueError(error_msg)
 
     def delete_grade_gui(self, grade_id):
         """Удаление оценки из GUI"""
@@ -1501,6 +1503,8 @@ class SchoolApp:
                 fio_combo = ttk.Combobox(form_frame, values=student_list, width=27)
                 fio_combo.grid(row=0, column=1, pady=5, padx=(10, 0))
                 fio_combo.set(current_values[0])
+                # Разрешаем ввод произвольного текста для изменения ФИО
+                fio_combo.config(state="normal")
                 fio_combo.bind('<KeyRelease>', lambda e: self.on_combo_key_release(fio_combo, student_list))
                 entry_widgets['fio'] = fio_combo
 
@@ -1621,9 +1625,12 @@ class SchoolApp:
                     current_grade_values = tree.item(selected_item, 'values')
                     current_fio = current_grade_values[0] if current_grade_values else ""
                     
-                    success = self.data_manager.update_grade_gui(grade_id, new_fio, new_subject, new_grade)
-                    if not success:
-                        raise FileOperationError("Не удалось обновить запись об оценке")
+                    try:
+                        success = self.data_manager.update_grade_gui(grade_id, new_fio, new_subject, new_grade)
+                        if not success:
+                            raise FileOperationError("Не удалось обновить запись об оценке")
+                    except ValueError as e:
+                        raise FileOperationError(str(e))
                     
                     # Если ФИО изменилось, обновляем также таблицу учеников
                     if current_fio != new_fio:
