@@ -536,7 +536,7 @@ class SchoolDataManager:
                 # ФИО не изменилось, просто обновляем оценку
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             
-                return True
+            return True
         except Exception as e:
             error_msg = str(e)
             print(f"Ошибка обновления оценки: {error_msg}")
