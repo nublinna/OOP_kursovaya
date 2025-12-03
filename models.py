@@ -105,6 +105,6 @@ class GradeRecord:
     def grade(self):
         return self._grade
 
-    def to_display_tuple(self, student_name: str):
-        return student_name, self._subject, str(self._grade)
+    def to_display_tuple(self, student_name: str, student_class: str = ""):
+        return student_name, self._subject, str(self._grade), student_class
 

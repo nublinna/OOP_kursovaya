@@ -231,13 +231,14 @@ class SchoolDatabase:
         self.DB_CONNECTION.commit()
 
     def get_all_grades_rows(self):
-        """Возвращает все оценки вместе с ФИО учеников."""
+        """Возвращает все оценки вместе с ФИО учеников и их классами."""
         grade_rows_query = """
             SELECT g.id,
                    g.student_id,
                    s.last_name,
                    s.first_name,
                    s.middle_name,
+                   s.class_name,
                    g.subject_name,
                    g.grade
             FROM grades g

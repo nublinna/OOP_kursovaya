@@ -330,13 +330,18 @@ class SchoolDataManager:
         try:
             rows = self.db.get_all_grades_rows()
             result = []
-            for grade_id, student_id, last_name, first_name, middle_name, subject_name, grade in rows:
+            for grade_id, student_id, last_name, first_name, middle_name, class_name, subject_name, grade in rows:
                 fio = f"{last_name} {first_name} {middle_name}".strip()
+                # Форматируем класс для отображения
+                if class_name:
+                    class_str = ", ".join(class_name) if isinstance(class_name, list) else str(class_name)
+                else:
+                    class_str = ""
                 grade_obj = GradeRecord(student_id, subject_name, grade)
                 result.append({
                     "id": grade_id,
                     "student_id": student_id,
-                    "values": grade_obj.to_display_tuple(fio)
+                    "values": grade_obj.to_display_tuple(fio, class_str)
                 })
             return result
         except Exception as e:
@@ -531,7 +536,7 @@ class SchoolDataManager:
                 # ФИО не изменилось, просто обновляем оценку
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             
-            return True
+                return True
         except Exception as e:
             error_msg = str(e)
             print(f"Ошибка обновления оценки: {error_msg}")
@@ -783,13 +788,16 @@ class SchoolApp:
         """Создаёт таблицу оценок и заполняет её."""
         self.grades_frame = tk.Frame(self.table_frame, bg='#f0f0f0')
 
-        columns = ("ФИО", "Предмет", "Оценка")
+        columns = ("ФИО", "Предмет", "Оценка", "Класс")
         self.grades_tree = ttk.Treeview(self.grades_frame, columns=columns, show="headings")
 
         for col in columns:
             self.grades_tree.heading(col, text=col,
                                      command=lambda c=col: self.on_column_sort("grades", c))
-            self.grades_tree.column(col, width=200)
+            if col == "Класс":
+                self.grades_tree.column(col, width=150)
+            else:
+                self.grades_tree.column(col, width=200)
 
         self.grades_data = self.data_manager.get_all_grades()
 
@@ -809,6 +817,8 @@ class SchoolApp:
             "Предмет (Я-А)": (1, True),
             "Оценка (от меньшей к большей)": (2, False),
             "Оценка (от большей к меньшей)": (2, True),
+            "Класс (А-Я)": (3, False),
+            "Класс (Я-А)": (3, True),
         }
         self.grades_sort_options = list(self.grade_sort_map.keys())
         self.sort_option_maps["grades"] = self.grade_sort_map
@@ -1014,6 +1024,8 @@ class SchoolApp:
                     grade_element.set("fio", values[0])
                     grade_element.set("subject", values[1])
                     grade_element.set("value", values[2])
+                    if len(values) > 3:
+                        grade_element.set("class", values[3])
 
             tree = ET.ElementTree(root)
             tree.write(filename, encoding='utf-8', xml_declaration=True)
@@ -1081,7 +1093,8 @@ class SchoolApp:
             else:
                 grades_element = root.find("grades")
                 rows = [
-                    (grade_element.get("fio", ""), grade_element.get("subject", ""), grade_element.get("value", ""))
+                    (grade_element.get("fio", ""), grade_element.get("subject", ""), 
+                     grade_element.get("value", ""), grade_element.get("class", ""))
                     for grade_element in grades_element.findall("grade")
                 ] if grades_element is not None else []
                 self.apply_loaded_rows(rows)
@@ -1112,8 +1125,12 @@ class SchoolApp:
 
         else:
             for row in rows:
-                if len(row) >= 3:
-                    normalized.append((row[0], row[1], row[2]))
+                if len(row) >= 4:
+                    # ФИО, Предмет, Оценка, Класс
+                    normalized.append((row[0], row[1], row[2], row[3]))
+                elif len(row) >= 3:
+                    # ФИО, Предмет, Оценка (без класса)
+                    normalized.append((row[0], row[1], row[2], ""))
             self.set_table_data_from_rows("grades", normalized)
 
     def set_table_data_from_rows(self, table, rows):
@@ -1637,7 +1654,10 @@ class SchoolApp:
                         self.refresh_data("students")
                     self.refresh_data("grades")
                 else:
-                    new_values = (new_fio, new_subject, new_grade)
+                    # Для файловых данных получаем класс из текущих значений
+                    current_grade_values = tree.item(selected_item, 'values')
+                    current_class = current_grade_values[3] if len(current_grade_values) > 3 else ""
+                    new_values = (new_fio, new_subject, new_grade, current_class)
                     tree.item(selected_item, values=new_values)
                     self.sync_table_from_tree("grades")
 
@@ -2197,6 +2217,10 @@ class SchoolApp:
         # Сортировка по классам для учителей
         if self.current_table == "teachers" and column_index == 3:
             return self.parse_teacher_classes(value_str)
+
+        # Сортировка по классу для оценок
+        if self.current_table == "grades" and column_index == 3:
+            return self.parse_single_class(value_str)
 
         # Сортировка по оценке
         if self.current_table == "grades" and column_index == 2:
