@@ -272,6 +272,37 @@ class SchoolDatabase:
         result = self.DB_CURSOR.fetchone()
         return result[0] if result else None
 
+    def get_student_id_by_grade_id(self, grade_id):
+        """Получает student_id по grade_id."""
+        query = "SELECT student_id FROM grades WHERE id = %s"
+        self.DB_CURSOR.execute(query, (grade_id,))
+        result = self.DB_CURSOR.fetchone()
+        return result[0] if result else None
+
+    def get_student_fio_by_id(self, student_id):
+        """Получает ФИО ученика по student_id."""
+        query = """
+            SELECT last_name, first_name, middle_name FROM students WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (student_id,))
+        result = self.DB_CURSOR.fetchone()
+        if result:
+            last_name, first_name, middle_name = result
+            return f"{last_name} {first_name} {middle_name}".strip()
+        return None
+
+    def get_student_data_by_id(self, student_id):
+        """Получает данные ученика по student_id (класс и дату рождения)."""
+        query = """
+            SELECT class_name, birth_date FROM students WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (student_id,))
+        result = self.DB_CURSOR.fetchone()
+        if result:
+            class_name, birth_date = result
+            return class_name, birth_date
+        return None, None
+
     def teacher_exists(self, last_name, first_name, middle_name, subject):
         """Проверяет, есть ли учитель с таким ФИО и предметом."""
         query = """

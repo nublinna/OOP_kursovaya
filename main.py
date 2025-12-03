@@ -226,7 +226,7 @@ class SchoolDataManager:
         for grade, letters in self.CLASS_LETTERS.items():
             for letter in letters:
                 result.append(f"{grade}{letter}")
-        return result
+            return result
 
     def get_subject_list(self):
         try:
@@ -496,12 +496,42 @@ class SchoolDataManager:
             subject_name = self.validate_subject(subject_name)
             if subject_name == "Начальные классы":
                 raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
-            student_id = self.db.find_student_id(last_name, first_name, middle_name)
-            if not student_id:
-                raise ValueError("Указанный ученик не найден в базе")
-
-            self.db.update_grade(grade_id, student_id, subject_name, grade_int)
-            return True
+            
+            # Получаем текущий student_id из оценки
+            current_student_id = self.db.get_student_id_by_grade_id(grade_id)
+            if not current_student_id:
+                raise ValueError("Оценка не найдена в базе")
+            
+            # Получаем текущее ФИО ученика
+            current_fio = self.db.get_student_fio_by_id(current_student_id)
+            new_fio = f"{last_name} {first_name} {middle_name}".strip()
+            
+            # Ищем student_id по новому ФИО
+            new_student_id = self.db.find_student_id(last_name, first_name, middle_name)
+            
+            # Если ФИО изменилось
+            if current_fio != new_fio:
+                if new_student_id:
+                    # Если ученик с таким ФИО уже существует, обновляем оценку на этого ученика
+                    self.db.update_grade(grade_id, new_student_id, subject_name, grade_int)
+                else:
+                    # Если ученика с таким ФИО нет, обновляем ФИО текущего ученика
+                    # Получаем данные текущего ученика
+                    class_name, birth_date = self.db.get_student_data_by_id(current_student_id)
+                    if class_name is None:
+                        raise ValueError("Ученик не найден в базе")
+                    
+                    # Обновляем ФИО ученика
+                    self.db.update_students(
+                        current_student_id, last_name, first_name, class_name, middle_name, birth_date
+                    )
+                    # Обновляем оценку
+                    self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
+            else:
+                # ФИО не изменилось, просто обновляем оценку
+                self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
+            
+                return True
         except Exception as e:
             print(f"Ошибка обновления оценки: {e}")
             return False
@@ -1587,9 +1617,17 @@ class SchoolApp:
 
                 if self.data_source["grades"] == "database":
                     grade_id = int(selected_item)
+                    # Получаем текущее ФИО из оценки для сравнения
+                    current_grade_values = tree.item(selected_item, 'values')
+                    current_fio = current_grade_values[0] if current_grade_values else ""
+                    
                     success = self.data_manager.update_grade_gui(grade_id, new_fio, new_subject, new_grade)
                     if not success:
                         raise FileOperationError("Не удалось обновить запись об оценке")
+                    
+                    # Если ФИО изменилось, обновляем также таблицу учеников
+                    if current_fio != new_fio:
+                        self.refresh_data("students")
                     self.refresh_data("grades")
                 else:
                     new_values = (new_fio, new_subject, new_grade)
