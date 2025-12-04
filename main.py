@@ -331,7 +331,6 @@ class SchoolDataManager:
             result = []
             for grade_id, student_id, last_name, first_name, middle_name, class_name, subject_name, grade in rows:
                 fio = f"{last_name} {first_name} {middle_name}".strip()
-                # Форматируем класс для отображения
                 if class_name:
                     class_str = ", ".join(class_name) if isinstance(class_name, list) else str(class_name)
                 else:
@@ -500,46 +499,35 @@ class SchoolDataManager:
             subject_name = self.validate_subject(subject_name)
             if subject_name == "Начальные классы":
                 raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
-            
-            # Получаем текущий student_id из оценки
+
             current_student_id = self.db.get_student_id_by_grade_id(grade_id)
             if not current_student_id:
                 raise ValueError("Оценка не найдена в базе")
-            
-            # Получаем текущее ФИО ученика
+
             current_fio = self.db.get_student_fio_by_id(current_student_id)
             new_fio = f"{last_name} {first_name} {middle_name}".strip()
-            
-            # Ищем student_id по новому ФИО
+
             new_student_id = self.db.find_student_id(last_name, first_name, middle_name)
-            
-            # Если ФИО изменилось
+
             if current_fio != new_fio:
                 if new_student_id:
-                    # Если ученик с таким ФИО уже существует, обновляем оценку на этого ученика
                     self.db.update_grade(grade_id, new_student_id, subject_name, grade_int)
                 else:
-                    # Если ученика с таким ФИО нет, обновляем ФИО текущего ученика
-                    # Получаем данные текущего ученика
                     class_name, birth_date = self.db.get_student_data_by_id(current_student_id)
                     if class_name is None:
                         raise ValueError("Ученик не найден в базе")
-                    
-                    # Обновляем ФИО ученика
+
                     self.db.update_students(
                         current_student_id, last_name, first_name, class_name, middle_name, birth_date
                     )
-                    # Обновляем оценку
                     self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             else:
-                # ФИО не изменилось, просто обновляем оценку
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             
             return True
         except Exception as e:
             error_msg = str(e)
             print(f"Ошибка обновления оценки: {error_msg}")
-            # Пробрасываем исключение дальше, чтобы пользователь видел ошибку
             raise ValueError(error_msg)
 
     def delete_grade_gui(self, grade_id):
@@ -633,12 +621,12 @@ class ReportGenerator:
                 font_path=font_path
             )
 
-            return self._generate_pdf_from_html_template(html_content, output_file)
+            return self.generate_pdf_from_html_template(html_content, output_file)
 
         except Exception as e:
             raise FileOperationError(f"Ошибка при генерации PDF отчета: {str(e)}")
 
-    def _generate_pdf_from_html_template(self, html_content, output_file):
+    def generate_pdf_from_html_template(self, html_content, output_file):
         """Создание PDF из HTML контента"""
         try:
             font_folder = os.path.abspath("fonts")
@@ -719,7 +707,6 @@ class SchoolApp:
             else:
                 self.teachers_tree.column(col, width=180)
 
-        # ЗАГРУЖАЕМ ДАННЫЕ ИЗ БД ВМЕСТО ФИКСИРОВАННЫХ ДАННЫХ
         self.teachers_data = self.data_manager.get_all_teachers()
 
         for teacher in self.teachers_data:
@@ -1125,10 +1112,8 @@ class SchoolApp:
         else:
             for row in rows:
                 if len(row) >= 4:
-                    # ФИО, Предмет, Оценка, Класс
                     normalized.append((row[0], row[1], row[2], row[3]))
                 elif len(row) >= 3:
-                    # ФИО, Предмет, Оценка (без класса)
                     normalized.append((row[0], row[1], row[2], ""))
             self.set_table_data_from_rows("grades", normalized)
 
@@ -1620,7 +1605,6 @@ class SchoolApp:
                     if not success:
                         raise FileOperationError("Не удалось обновить запись ученика")
                     self.refresh_data("students")
-                    # Обновляем также таблицу оценок, так как ФИО ученика изменилось
                     self.refresh_data("grades")
                 else:
                     new_values = (new_fio, new_birth, new_class)
@@ -1637,7 +1621,6 @@ class SchoolApp:
 
                 if self.data_source["grades"] == "database":
                     grade_id = int(selected_item)
-                    # Получаем текущее ФИО из оценки для сравнения
                     current_grade_values = tree.item(selected_item, 'values')
                     current_fio = current_grade_values[0] if current_grade_values else ""
                     
@@ -1647,13 +1630,11 @@ class SchoolApp:
                             raise FileOperationError("Не удалось обновить запись об оценке")
                     except ValueError as e:
                         raise FileOperationError(str(e))
-                    
-                    # Если ФИО изменилось, обновляем также таблицу учеников
+
                     if current_fio != new_fio:
                         self.refresh_data("students")
                     self.refresh_data("grades")
                 else:
-                    # Для файловых данных получаем класс из текущих значений
                     current_grade_values = tree.item(selected_item, 'values')
                     current_class = current_grade_values[3] if len(current_grade_values) > 3 else ""
                     new_values = (new_fio, new_subject, new_grade, current_class)
@@ -2198,7 +2179,6 @@ class SchoolApp:
         else:
             value_str = str(value).strip()
 
-        # Сортировка по дате рождения
         if self.current_table in ("teachers", "students") and column_index == 1:
             try:
                 if value_str:
@@ -2209,19 +2189,15 @@ class SchoolApp:
             except ValueError:
                 return (value_str.lower() if value_str else "",)
 
-        # Сортировка по классу для учеников
         if self.current_table == "students" and column_index == 2:
             return self.parse_single_class(value_str)
 
-        # Сортировка по классам для учителей
         if self.current_table == "teachers" and column_index == 3:
             return self.parse_teacher_classes(value_str)
 
-        # Сортировка по классу для оценок
         if self.current_table == "grades" and column_index == 3:
             return self.parse_single_class(value_str)
 
-        # Сортировка по оценке
         if self.current_table == "grades" and column_index == 2:
             try:
                 if value_str:
@@ -2231,7 +2207,6 @@ class SchoolApp:
             except (TypeError, ValueError):
                 return (value_str.lower() if value_str else "",)
 
-        # Для всех остальных случаев (ФИО, предметы) - строковая сортировка
         return (value_str.lower() if value_str else "",)
 
 
@@ -2271,11 +2246,9 @@ class SchoolApp:
             sort_key = self.get_sort_key(value, column_index)
             items.append((sort_key, item))
 
-        # Сортировка с обработкой разных типов
         try:
             items.sort(key=lambda x: x[0], reverse=reverse)
         except (TypeError, ValueError):
-            # Если возникла ошибка при сравнении, используем строковую сортировку
             items.sort(key=lambda x: str(x[0]).lower(), reverse=reverse)
 
         for index, (_, item) in enumerate(items):
