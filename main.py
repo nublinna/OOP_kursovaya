@@ -158,7 +158,6 @@ class SchoolDataManager:
         age = self.calculate_age(birth_date)
         grade = self.extract_grade(class_name)
         
-        # Минимальный и максимальный возраст для каждого класса
         age_limits = {
             1: (6, 8),
             2: (7, 9),
@@ -226,7 +225,7 @@ class SchoolDataManager:
         for grade, letters in self.CLASS_LETTERS.items():
             for letter in letters:
                 result.append(f"{grade}{letter}")
-            return result
+        return result
 
     def get_subject_list(self):
         try:
