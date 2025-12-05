@@ -4,7 +4,7 @@
 Nika Sheshko
 """
 
-___author__ = "Nika Sheshko"
+__author__ = "Nika Sheshko"
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -333,8 +333,8 @@ class SchoolDataManager:
                 fio = f"{last_name} {first_name} {middle_name}".strip()
                 if class_name:
                     class_str = ", ".join(class_name) if isinstance(class_name, list) else str(class_name)
-            else:
-                class_str = ""
+                else:
+                    class_str = ""
                 grade_obj = GradeRecord(student_id, subject_name, grade)
                 result.append({
                     "id": grade_id,
@@ -1642,8 +1642,8 @@ class SchoolApp:
                     self.refresh_data("grades")
                 else:
                     new_values = (new_fio, new_birth, new_class)
-                tree.item(selected_item, values=new_values)
-                self.sync_table_from_tree("students")
+                    tree.item(selected_item, values=new_values)
+                    self.sync_table_from_tree("students")
 
             else:
                 new_fio = entry_widgets['fio'].get().strip()
