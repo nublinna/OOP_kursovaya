@@ -225,7 +225,7 @@ class SchoolDataManager:
         for grade, letters in self.CLASS_LETTERS.items():
             for letter in letters:
                 result.append(f"{grade}{letter}")
-        return result
+            return result
 
     def get_subject_list(self):
         try:
@@ -333,8 +333,8 @@ class SchoolDataManager:
                 fio = f"{last_name} {first_name} {middle_name}".strip()
                 if class_name:
                     class_str = ", ".join(class_name) if isinstance(class_name, list) else str(class_name)
-                else:
-                    class_str = ""
+            else:
+                class_str = ""
                 grade_obj = GradeRecord(student_id, subject_name, grade)
                 result.append({
                     "id": grade_id,
@@ -441,19 +441,15 @@ class SchoolDataManager:
 
     def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str, birth_date_str):
         """Обновление учителя из GUI"""
-        try:
-            last_name, first_name, middle_name = self.parse_and_validate_fio(new_fio)
-            classes = self.validate_teacher_classes(new_classes_str)
-            subject = self.validate_subject(new_subject)
-            birth_date = self.parse_birth_date(birth_date_str)
-            self.validate_teacher_age(birth_date)
-            self.db.update_teachers(
-                teacher_id, last_name, first_name, subject, classes, middle_name, birth_date.isoformat()
-            )
-            return True
-        except Exception as e:
-            print(f"Ошибка обновления учителя: {e}")
-            return False
+        last_name, first_name, middle_name = self.parse_and_validate_fio(new_fio)
+        classes = self.validate_teacher_classes(new_classes_str)
+        subject = self.validate_subject(new_subject)
+        birth_date = self.parse_birth_date(birth_date_str)
+        self.validate_teacher_age(birth_date)
+        self.db.update_teachers(
+            teacher_id, last_name, first_name, subject, classes, middle_name, birth_date.isoformat()
+        )
+        return True
 
     def delete_teacher_gui(self, teacher_id):
         """Удаление учителя из GUI"""
@@ -466,18 +462,14 @@ class SchoolDataManager:
 
     def update_student_gui(self, student_id, new_fio, new_class_str, birth_date_str):
         """Обновление ученика из GUI"""
-        try:
-            last_name, first_name, middle_name = self.parse_and_validate_fio(new_fio)
-            class_name = self.validate_class_name(new_class_str)
-            birth_date = self.parse_birth_date(birth_date_str)
-            self.validate_student_age(birth_date, class_name)
-            self.db.update_students(
-                student_id, last_name, first_name, [class_name], middle_name, birth_date.isoformat()
-            )
-            return True
-        except Exception as e:
-            print(f"Ошибка обновления ученика: {e}")
-            return False
+        last_name, first_name, middle_name = self.parse_and_validate_fio(new_fio)
+        class_name = self.validate_class_name(new_class_str)
+        birth_date = self.parse_birth_date(birth_date_str)
+        self.validate_student_age(birth_date, class_name)
+        self.db.update_students(
+            student_id, last_name, first_name, [class_name], middle_name, birth_date.isoformat()
+        )
+        return True
 
     def delete_student_gui(self, student_id):
         """Удаление ученика из GUI"""
@@ -524,7 +516,7 @@ class SchoolDataManager:
             else:
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             
-            return True
+                return True
         except Exception as e:
             error_msg = str(e)
             print(f"Ошибка обновления оценки: {error_msg}")
@@ -1498,13 +1490,11 @@ class SchoolApp:
                 class_entry.insert(0, current_values[2])
                 entry_widgets['class'] = class_entry
             else:
-                # Редактирование оценок
                 tk.Label(form_frame, text="ФИО ученика:").grid(row=0, column=0, sticky="w", pady=5)
                 student_list = self.data_manager.get_student_list()
                 fio_combo = ttk.Combobox(form_frame, values=student_list, width=27)
                 fio_combo.grid(row=0, column=1, pady=5, padx=(10, 0))
                 fio_combo.set(current_values[0])
-                # Разрешаем ввод произвольного текста для изменения ФИО
                 fio_combo.config(state="normal")
                 fio_combo.bind('<KeyRelease>', lambda e: self.on_combo_key_release(fio_combo, student_list))
                 entry_widgets['fio'] = fio_combo
@@ -1566,6 +1556,44 @@ class SchoolApp:
             self.data_source["grades"] = "database"
             self.populate_tree(self.grades_tree, self.grades_data)
 
+    def format_field_error(self, table, message):
+        """Добавляет подсказку по полю, в котором возникла ошибка."""
+        msg_lower = str(message).lower()
+        if table == "teachers":
+            mapping = [
+                ("фио", "ФИО"),
+                ("предмет", "Предмет"),
+                ("класс", "Классы"),
+                ("дата", "Дата рождения"),
+                ("возраст", "Дата рождения"),
+            ]
+        elif table == "students":
+            mapping = [
+                ("фио", "ФИО"),
+                ("класс", "Класс"),
+                ("дата", "Дата рождения"),
+                ("возраст", "Дата рождения"),
+            ]
+        else:
+            mapping = [
+                ("фио", "ФИО ученика"),
+                ("предмет", "Предмет"),
+                ("оцен", "Оценка"),
+                ("класс", "Класс"),
+            ]
+        for key, label in mapping:
+            if key in msg_lower:
+                return f"Ошибка в поле '{label}': {message}"
+        return str(message)
+
+    def confirm_delete(self):
+        """Двойное подтверждение удаления записи."""
+        first = messagebox.askyesno("Удаление", "Вы действительно хотите удалить запись?")
+        if not first:
+            return False
+        second = messagebox.askyesno("Удаление", "Удаление необратимо. Подтвердите удаление.")
+        return second
+
     def save_edited_row(self, edit_window, selected_item, entry_widgets, tree):
         """Сохранение отредактированных данных В БД"""
         try:
@@ -1580,9 +1608,12 @@ class SchoolApp:
 
                 if self.data_source["teachers"] == "database":
                     teacher_id = int(selected_item)
-                    success = self.data_manager.update_teacher_gui(
-                        teacher_id, new_fio, new_subject, new_classes, new_birth
-                    )
+                    try:
+                        success = self.data_manager.update_teacher_gui(
+                            teacher_id, new_fio, new_subject, new_classes, new_birth
+                        )
+                    except ValueError as e:
+                        raise FileOperationError(self.format_field_error("teachers", str(e)))
                     if not success:
                         raise FileOperationError("Не удалось обновить запись учителя")
                     self.refresh_data("teachers")
@@ -1601,15 +1632,18 @@ class SchoolApp:
 
                 if self.data_source["students"] == "database":
                     student_id = int(selected_item)
-                    success = self.data_manager.update_student_gui(student_id, new_fio, new_class, new_birth)
+                    try:
+                        success = self.data_manager.update_student_gui(student_id, new_fio, new_class, new_birth)
+                    except ValueError as e:
+                        raise FileOperationError(self.format_field_error("students", str(e)))
                     if not success:
                         raise FileOperationError("Не удалось обновить запись ученика")
                     self.refresh_data("students")
                     self.refresh_data("grades")
                 else:
                     new_values = (new_fio, new_birth, new_class)
-                    tree.item(selected_item, values=new_values)
-                    self.sync_table_from_tree("students")
+                tree.item(selected_item, values=new_values)
+                self.sync_table_from_tree("students")
 
             else:
                 new_fio = entry_widgets['fio'].get().strip()
@@ -1629,7 +1663,7 @@ class SchoolApp:
                         if not success:
                             raise FileOperationError("Не удалось обновить запись об оценке")
                     except ValueError as e:
-                        raise FileOperationError(str(e))
+                        raise FileOperationError(self.format_field_error("grades", str(e)))
 
                     if current_fio != new_fio:
                         self.refresh_data("students")
@@ -1646,6 +1680,8 @@ class SchoolApp:
 
         except EmptySearchError as e:
             messagebox.showwarning("Ошибка заполнения", str(e))
+        except FileOperationError as e:
+            messagebox.showerror("Ошибка", str(e))
         except Exception as e:
             messagebox.showerror("Ошибка", f"Ошибка при сохранении: {str(e)}")
 
@@ -1669,17 +1705,23 @@ class SchoolApp:
                 if not selected_item:
                     messagebox.showwarning("Удаление", "Выберите запись для удаления")
                     return
+                if not self.confirm_delete():
+                    return
                 self.handle_delete(selected_item)
             elif self.current_table == "students":
                 selected_item = self.students_tree.selection()
                 if not selected_item:
                     messagebox.showwarning("Удаление", "Выберите запись для удаления")
                     return
+                if not self.confirm_delete():
+                    return
                 self.handle_delete(selected_item)
             else:
                 selected_item = self.grades_tree.selection()
                 if not selected_item:
                     messagebox.showwarning("Удаление", "Выберите запись для удаления")
+                    return
+                if not self.confirm_delete():
                     return
                 self.handle_delete(selected_item)
 
