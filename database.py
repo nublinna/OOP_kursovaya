@@ -405,3 +405,33 @@ class SchoolDatabase:
         self.DB_CURSOR.execute(query, (last_name, first_name, middle_name))
         result = self.DB_CURSOR.fetchone()
         return result[0] if result else []
+
+    def get_teacher_by_id(self, teacher_id):
+        """Получает данные учителя по ID."""
+        query = """
+            SELECT last_name, first_name, middle_name, subject, classes, birth_date
+            FROM teachers
+            WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (teacher_id,))
+        return self.DB_CURSOR.fetchone()
+
+    def get_student_by_id(self, student_id):
+        """Получает данные ученика по ID."""
+        query = """
+            SELECT last_name, first_name, middle_name, class_name, birth_date
+            FROM students
+            WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (student_id,))
+        return self.DB_CURSOR.fetchone()
+
+    def get_grade_by_id(self, grade_id):
+        """Получает данные оценки по ID."""
+        query = """
+            SELECT student_id, subject_name, grade
+            FROM grades
+            WHERE id = %s
+        """
+        self.DB_CURSOR.execute(query, (grade_id,))
+        return self.DB_CURSOR.fetchone()
