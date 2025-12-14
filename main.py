@@ -24,32 +24,22 @@ from database import SchoolDatabase
 from models import Teacher, Student, GradeRecord
 
 # Настройка логирования
-LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
-LOG_FILE = 'school_app.log'
-
-# Создаем логгер для приложения
-logger = logging.getLogger('SchoolApp')
-logger.setLevel(logging.DEBUG)
-
-# Создаем обработчик для файла
-file_handler = logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')
-file_handler.setLevel(logging.DEBUG)
-
-# Создаем форматтер и добавляем его к обработчику
-formatter = logging.Formatter(LOG_FORMAT)
-file_handler.setFormatter(formatter)
-
-# Добавляем обработчик к логгеру
-logger.addHandler(file_handler)
-
-# Также настраиваем корневой логгер для совместимости с существующими вызовами
 logging.basicConfig(
     level=logging.DEBUG,
-    format=LOG_FORMAT,
-    filename=LOG_FILE,
-    filemode='a',
-    encoding='utf-8'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('school_app_mult.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
 )
+
+app_logger = logging.getLogger("school_app")
+app_logger.setLevel(logging.DEBUG)
+app_file_handler = logging.FileHandler('school_app.log', encoding='utf-8')
+app_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+app_file_handler.setFormatter(app_formatter)
+app_logger.addHandler(app_file_handler)
+app_logger.propagate = False
 
 
 class SchoolDataManager:
@@ -260,7 +250,7 @@ class SchoolDataManager:
         try:
             return self.db.get_subject_list()
         except Exception as e:
-            logging.error(f"Ошибка получения списка предметов: {e}")
+            self.logger.error(f"Ошибка получения списка предметов: {e}")
             return []
 
     def get_teacher_list(self):
@@ -268,7 +258,7 @@ class SchoolDataManager:
             teachers = self.db.get_teacher_fios()
             return [self.format_fio(*teacher).strip() for teacher in teachers]
         except Exception as e:
-            logging.error(f"Ошибка получения списка учителей: {e}")
+            self.logger.error(f"Ошибка получения списка учителей: {e}")
             return []
 
     def get_student_list(self):
@@ -276,8 +266,7 @@ class SchoolDataManager:
             rows = self.db.fetch_all_students()
             return [self.format_fio(row[1], row[2], row[3]).strip() for row in rows]
         except Exception as e:
-            logging.error(f"Ошибка получения списка учеников: {e}", exc_info=True)
-            print(f"Ошибка получения списка учеников: {e}")
+            self.logger.error(f"Ошибка получения списка учеников: {e}", exc_info=True)
             return []
 
     def get_grade_subjects(self):
@@ -287,7 +276,7 @@ class SchoolDataManager:
         try:
             return self.db.get_class_list()
         except Exception as e:
-            logging.error(f"Ошибка получения списка классов: {e}")
+            self.logger.error(f"Ошибка получения списка классов: {e}")
             return []
 
     def get_teachers_by_subject(self, subject):
@@ -295,8 +284,7 @@ class SchoolDataManager:
             teachers = self.db.get_teachers_by_subject(subject)
             return [self.format_fio(*teacher).strip() for teacher in teachers]
         except Exception as e:
-            logging.error(f"Ошибка запроса учителей по предмету: {e}", exc_info=True)
-            print(f"Ошибка запроса учителей по предмету: {e}")
+            self.logger.error(f"Ошибка запроса учителей по предмету: {e}", exc_info=True)
             return []
 
     def get_teacher_classes(self, fio):
@@ -305,8 +293,7 @@ class SchoolDataManager:
             classes = self.db.get_teacher_classes_by_name(last_name, first_name, middle_name)
             return classes if classes else []
         except Exception as e:
-            logging.error(f"Ошибка получения классов учителя: {e}", exc_info=True)
-            print(f"Ошибка получения классов учителя: {e}")
+            self.logger.error(f"Ошибка получения классов учителя: {e}", exc_info=True)
             return []
 
     def get_student_count(self, class_name=None):
@@ -315,9 +302,8 @@ class SchoolDataManager:
                 class_name = class_name.strip()
             return self.db.get_students_count(class_name if class_name else None)
         except Exception as e:
-            logging.error(f"Ошибка получения количества учеников: {e}", exc_info=True)
-            print(f"Ошибка получения количества учеников: {e}")
-            return 0
+            self.logger.error(f"Ошибка получения количества учеников: {e}", exc_info=True)
+            return []
 
     def get_all_teachers(self):
         """Получение всех учителей в формате для GUI"""
@@ -335,8 +321,7 @@ class SchoolDataManager:
                 })
             return teachers
         except Exception as e:
-            logging.error(f"Ошибка получения учителей: {e}", exc_info=True)
-            print(f"Ошибка получения учителей: {e}")
+            self.logger.error(f"Ошибка получения учителей: {e}", exc_info=True)
             return []
 
     def get_all_students(self):
@@ -355,8 +340,7 @@ class SchoolDataManager:
                 })
             return result
         except Exception as e:
-            logging.error(f"Ошибка получения учеников: {e}", exc_info=True)
-            print(f"Ошибка получения учеников: {e}")
+            self.logger.error(f"Ошибка получения учеников: {e}", exc_info=True)
             return []
 
     def get_all_grades(self):
@@ -378,107 +362,106 @@ class SchoolDataManager:
                 })
             return result
         except Exception as e:
-            logging.error(f"Ошибка получения оценок: {e}", exc_info=True)
-            print(f"Ошибка получения оценок: {e}")
+            self.logger.error(f"Ошибка получения оценок: {e}", exc_info=True)
             return []
 
     def add_teacher_gui(self, fio, subject, classes_str, birth_date_str):
         """Добавляет нового учителя после всех проверок."""
-        logger.info(f"Начало добавления учителя: ФИО='{fio}', предмет='{subject}', классы='{classes_str}', дата рождения='{birth_date_str}'")
+        self.logger.info(f"Начало добавления учителя: ФИО='{fio}', предмет='{subject}', классы='{classes_str}', дата рождения='{birth_date_str}'")
 
         try:
             last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
-            logger.debug(f"ФИО успешно разобрано: {last_name} {first_name} {middle_name}")
+            self.logger.debug(f"ФИО успешно разобрано: {last_name} {first_name} {middle_name}")
 
             subject = self.validate_subject(subject)
-            logger.debug(f"Предмет успешно валидирован: {subject}")
+            self.logger.debug(f"Предмет успешно валидирован: {subject}")
 
             classes = self.validate_teacher_classes(classes_str)
-            logger.debug(f"Классы успешно валидированы: {classes}")
+            self.logger.debug(f"Классы успешно валидированы: {classes}")
 
             birth_date = self.parse_birth_date(birth_date_str)
-            logger.debug(f"Дата рождения успешно разобрана: {birth_date}")
+            self.logger.debug(f"Дата рождения успешно разобрана: {birth_date}")
 
             self.validate_teacher_age(birth_date)
-            logger.debug("Возраст учителя успешно валидирован")
+            self.logger.debug("Возраст учителя успешно валидирован")
 
             if self.db.teacher_exists(last_name, first_name, middle_name, subject):
-                logger.warning(f"Попытка добавить существующего учителя: {last_name} {first_name} {middle_name} - {subject}")
+                self.logger.warning(f"Попытка добавить существующего учителя: {last_name} {first_name} {middle_name} - {subject}")
                 raise ValueError("Такой учитель уже есть в базе")
 
             teacher = Teacher(last_name, first_name, middle_name, subject, classes)
             last, first, middle, subj, class_list = teacher.to_db_payload()
 
             self.db.add_teacher(last, first, subj, class_list, middle, birth_date.isoformat())
-            logger.info(f"Учитель успешно добавлен в базу данных: {last_name} {first_name} {middle_name} - {subject}")
+            self.logger.info(f"Учитель успешно добавлен в базу данных: {last_name} {first_name} {middle_name} - {subject}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка при добавлении учителя {fio}: {e}", exc_info=True)
+            self.logger.error(f"Ошибка при добавлении учителя {fio}: {e}", exc_info=True)
             raise
 
     def add_student_gui(self, fio, class_name, birth_date_str):
         """Добавляет ученика после проверок."""
-        logger.info(f"Начало добавления ученика: ФИО='{fio}', класс='{class_name}', дата рождения='{birth_date_str}'")
+        self.logger.info(f"Начало добавления ученика: ФИО='{fio}', класс='{class_name}', дата рождения='{birth_date_str}'")
 
         try:
             last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
-            logger.debug(f"ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
+            self.logger.debug(f"ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
 
             class_name = self.validate_class_name(class_name)
-            logger.debug(f"Класс ученика успешно валидирован: {class_name}")
+            self.logger.debug(f"Класс ученика успешно валидирован: {class_name}")
 
             birth_date = self.parse_birth_date(birth_date_str)
-            logger.debug(f"Дата рождения ученика успешно разобрана: {birth_date}")
+            self.logger.debug(f"Дата рождения ученика успешно разобрана: {birth_date}")
 
             self.validate_student_age(birth_date, class_name)
-            logger.debug("Возраст ученика успешно валидирован")
+            self.logger.debug("Возраст ученика успешно валидирован")
 
             self.db.add_student(last_name, first_name, [class_name], middle_name, birth_date.isoformat())
-            logger.info(f"Ученик успешно добавлен в базу данных: {last_name} {first_name} {middle_name} - {class_name}")
+            self.logger.info(f"Ученик успешно добавлен в базу данных: {last_name} {first_name} {middle_name} - {class_name}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка при добавлении ученика {fio}: {e}", exc_info=True)
+            self.logger.error(f"Ошибка при добавлении ученика {fio}: {e}", exc_info=True)
             raise
 
     def add_grade_gui(self, fio, subject, grade_value):
         """Добавляет новую оценку."""
-        logger.info(f"Начало добавления оценки: ФИО='{fio}', предмет='{subject}', оценка='{grade_value}'")
+        self.logger.info(f"Начало добавления оценки: ФИО='{fio}', предмет='{subject}', оценка='{grade_value}'")
 
         try:
             last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
-            logger.debug(f"ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
+            self.logger.debug(f"ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
 
             subject = self.validate_subject(subject)
-            logger.debug(f"Предмет успешно валидирован: {subject}")
+            self.logger.debug(f"Предмет успешно валидирован: {subject}")
 
             if subject == "Начальные классы":
-                logger.warning(f"Попытка выставить оценку по предмету 'Начальные классы' для ученика {fio}")
+                self.logger.warning(f"Попытка выставить оценку по предмету 'Начальные классы' для ученика {fio}")
                 raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
 
             try:
                 grade = int(grade_value)
-                logger.debug(f"Оценка успешно преобразована в число: {grade}")
+                self.logger.debug(f"Оценка успешно преобразована в число: {grade}")
             except ValueError:
-                logger.warning(f"Некорректная оценка '{grade_value}' - не является числом")
+                self.logger.warning(f"Некорректная оценка '{grade_value}' - не является числом")
                 raise ValueError("Оценка должна быть числом от 1 до 5")
 
             if grade < 1 or grade > 5:
-                logger.warning(f"Некорректная оценка {grade} - должна быть от 1 до 5")
+                self.logger.warning(f"Некорректная оценка {grade} - должна быть от 1 до 5")
                 raise ValueError("Оценка должна быть от 1 до 5")
 
             student_id = self.db.find_student_id(last_name, first_name, middle_name)
             if not student_id:
-                logger.warning(f"Ученик не найден: {last_name} {first_name} {middle_name}")
+                self.logger.warning(f"Ученик не найден: {last_name} {first_name} {middle_name}")
                 raise ValueError("Ученик с таким ФИО не найден")
 
             self.db.add_grade(student_id, subject, grade)
-            logger.info(f"Оценка успешно добавлена: ученик {last_name} {first_name} {middle_name}, предмет {subject}, оценка {grade}")
+            self.logger.info(f"Оценка успешно добавлена: ученик {last_name} {first_name} {middle_name}, предмет {subject}, оценка {grade}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка при добавлении оценки для ученика {fio}: {e}", exc_info=True)
+            self.logger.error(f"Ошибка при добавлении оценки для ученика {fio}: {e}", exc_info=True)
             raise
 
     def import_teachers(self, teachers_rows):
@@ -496,7 +479,7 @@ class SchoolDataManager:
                 self.add_teacher_gui(fio, subject, classes_str, birth)
                 imported += 1
             except Exception as exc:
-                logging.error(f"Ошибка импорта учителя: {exc}")
+                self.logger.error(f"Ошибка импорта учителя: {exc}")
         return imported
 
     def import_students(self, student_rows):
@@ -514,8 +497,8 @@ class SchoolDataManager:
                 self.add_student_gui(fio, class_str, birth)
                 imported += 1
             except Exception as exc:
-                logging.error(f"Ошибка импорта ученика: {exc}", exc_info=True)
-                print(f"Ошибка импорта ученика: {exc}")
+                self.logger.error(f"Ошибка импорта ученика: {exc}", exc_info=True)
+                
         return imported
 
     def import_grades(self, grade_rows):
@@ -531,8 +514,8 @@ class SchoolDataManager:
                 self.add_grade_gui(fio, subject, grade_value)
                 imported += 1
             except Exception as exc:
-                logging.error(f"Ошибка импорта оценки: {exc}", exc_info=True)
-                print(f"Ошибка импорта оценки: {exc}")
+                self.logger.error(f"Ошибка импорта оценки: {exc}", exc_info=True)
+                
         return imported
 
     def update_teacher_gui(self, teacher_id, new_fio, new_subject, new_classes_str, birth_date_str):
@@ -549,93 +532,91 @@ class SchoolDataManager:
 
     def delete_teacher_gui(self, teacher_id):
         """Удаление учителя из GUI"""
-        logger.info(f"Начало удаления учителя с ID: {teacher_id}")
+        self.logger.info(f"Начало удаления учителя с ID: {teacher_id}")
 
         try:
             # Получаем информацию об учителе перед удалением для логирования
             teacher_info = self.db.get_teacher_by_id(teacher_id)
             if teacher_info:
                 teacher_name = f"{teacher_info[0]} {teacher_info[1]} {teacher_info[2] or ''}".strip()
-                logger.debug(f"Удаление учителя: {teacher_name} (ID: {teacher_id})")
+                self.logger.debug(f"Удаление учителя: {teacher_name} (ID: {teacher_id})")
 
             self.db.delete_teacher(teacher_id)
-            logger.info(f"Учитель успешно удален: ID {teacher_id}")
+            self.logger.info(f"Учитель успешно удален: ID {teacher_id}")
             return True
         except Exception as e:
-            logger.error(f"Ошибка удаления учителя с ID {teacher_id}: {e}", exc_info=True)
-            print(f"Ошибка удаления учителя: {e}")
+            self.logger.error(f"Ошибка удаления учителя с ID {teacher_id}: {e}", exc_info=True)
             return False
 
     def update_student_gui(self, student_id, new_fio, new_class_str, birth_date_str):
         """Обновление ученика из GUI"""
-        logger.info(f"Начало обновления ученика с ID {student_id}: ФИО='{new_fio}', класс='{new_class_str}', дата рождения='{birth_date_str}'")
+        self.logger.info(f"Начало обновления ученика с ID {student_id}: ФИО='{new_fio}', класс='{new_class_str}', дата рождения='{birth_date_str}'")
 
         try:
             last_name, first_name, middle_name = self.parse_and_validate_fio(new_fio)
-            logger.debug(f"Новое ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
+            self.logger.debug(f"Новое ФИО ученика успешно разобрано: {last_name} {first_name} {middle_name}")
 
             class_name = self.validate_class_name(new_class_str)
-            logger.debug(f"Новый класс ученика успешно валидирован: {class_name}")
+            self.logger.debug(f"Новый класс ученика успешно валидирован: {class_name}")
 
             birth_date = self.parse_birth_date(birth_date_str)
-            logger.debug(f"Новая дата рождения ученика успешно разобрана: {birth_date}")
+            self.logger.debug(f"Новая дата рождения ученика успешно разобрана: {birth_date}")
 
             self.validate_student_age(birth_date, class_name)
-            logger.debug("Новый возраст ученика успешно валидирован")
+            self.logger.debug("Новый возраст ученика успешно валидирован")
 
             self.db.update_students(
                 student_id, last_name, first_name, [class_name], middle_name, birth_date.isoformat()
             )
-            logger.info(f"Ученик успешно обновлен: ID {student_id}")
+            self.logger.info(f"Ученик успешно обновлен: ID {student_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка при обновлении ученика с ID {student_id}: {e}", exc_info=True)
+            self.logger.error(f"Ошибка при обновлении ученика с ID {student_id}: {e}", exc_info=True)
             raise
 
     def delete_student_gui(self, student_id):
         """Удаление ученика из GUI"""
-        logger.info(f"Начало удаления ученика с ID: {student_id}")
+        self.logger.info(f"Начало удаления ученика с ID: {student_id}")
 
         try:
             # Получаем информацию об ученике перед удалением для логирования
             student_info = self.db.get_student_by_id(student_id)
             if student_info:
                 student_name = f"{student_info[0]} {student_info[1]} {student_info[2] or ''}".strip()
-                logger.debug(f"Удаление ученика: {student_name} (ID: {student_id})")
+                self.logger.debug(f"Удаление ученика: {student_name} (ID: {student_id})")
 
             self.db.delete_student(student_id)
-            logger.info(f"Ученик успешно удален: ID {student_id}")
+            self.logger.info(f"Ученик успешно удален: ID {student_id}")
             return True
         except Exception as e:
-            logger.error(f"Ошибка удаления ученика с ID {student_id}: {e}", exc_info=True)
-            print(f"Ошибка удаления ученика: {e}")
+            self.logger.error(f"Ошибка удаления ученика с ID {student_id}: {e}", exc_info=True)
             return False
 
     def update_grade_gui(self, grade_id, fio, subject_name, grade_value):
         """Обновление оценки из GUI"""
-        logger.info(f"Начало обновления оценки с ID {grade_id}: ФИО='{fio}', предмет='{subject_name}', оценка='{grade_value}'")
+        self.logger.info(f"Начало обновления оценки с ID {grade_id}: ФИО='{fio}', предмет='{subject_name}', оценка='{grade_value}'")
 
         try:
             grade_int = int(grade_value)
             if grade_int < 1 or grade_int > 5:
-                logger.warning(f"Некорректная оценка {grade_int} при обновлении оценки ID {grade_id}")
+                self.logger.warning(f"Некорректная оценка {grade_int} при обновлении оценки ID {grade_id}")
                 raise ValueError("Оценка должна быть от 1 до 5")
-            logger.debug(f"Оценка успешно валидирована: {grade_int}")
+            self.logger.debug(f"Оценка успешно валидирована: {grade_int}")
 
             last_name, first_name, middle_name = self.parse_and_validate_fio(fio)
-            logger.debug(f"ФИО успешно разобрано: {last_name} {first_name} {middle_name}")
+            self.logger.debug(f"ФИО успешно разобрано: {last_name} {first_name} {middle_name}")
 
             subject_name = self.validate_subject(subject_name)
-            logger.debug(f"Предмет успешно валидирован: {subject_name}")
+            self.logger.debug(f"Предмет успешно валидирован: {subject_name}")
 
             if subject_name == "Начальные классы":
-                logger.warning(f"Попытка обновить оценку по предмету 'Начальные классы' для оценки ID {grade_id}")
+                self.logger.warning(f"Попытка обновить оценку по предмету 'Начальные классы' для оценки ID {grade_id}")
                 raise ValueError("Нельзя выставлять оценки по предмету 'Начальные классы'")
 
             current_student_id = self.db.get_student_id_by_grade_id(grade_id)
             if not current_student_id:
-                logger.warning(f"Оценка с ID {grade_id} не найдена в базе")
+                self.logger.warning(f"Оценка с ID {grade_id} не найдена в базе")
                 raise ValueError("Оценка не найдена в базе")
 
             current_fio = self.db.get_student_fio_by_id(current_student_id)
@@ -644,12 +625,12 @@ class SchoolDataManager:
             new_student_id = self.db.find_student_id(last_name, first_name, middle_name)
 
             if current_fio != new_fio:
-                logger.debug(f"Изменение ФИО ученика при обновлении оценки: '{current_fio}' -> '{new_fio}'")
+                self.logger.debug(f"Изменение ФИО ученика при обновлении оценки: '{current_fio}' -> '{new_fio}'")
                 if new_student_id:
-                    logger.debug(f"Найден существующий ученик с новым ФИО, обновление оценки для student_id {new_student_id}")
+                    self.logger.debug(f"Найден существующий ученик с новым ФИО, обновление оценки для student_id {new_student_id}")
                     self.db.update_grade(grade_id, new_student_id, subject_name, grade_int)
                 else:
-                    logger.debug("Создание нового ученика и обновление оценки")
+                    self.logger.debug("Создание нового ученика и обновление оценки")
                     class_name, birth_date = self.db.get_student_data_by_id(current_student_id)
                     if class_name is None:
                         raise ValueError("Ученик не найден в базе")
@@ -659,34 +640,32 @@ class SchoolDataManager:
                     )
                     self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
             else:
-                logger.debug("Обновление оценки без изменения ученика")
+                self.logger.debug("Обновление оценки без изменения ученика")
                 self.db.update_grade(grade_id, current_student_id, subject_name, grade_int)
 
-            logger.info(f"Оценка успешно обновлена: ID {grade_id}")
+            self.logger.info(f"Оценка успешно обновлена: ID {grade_id}")
             return True
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Ошибка обновления оценки с ID {grade_id}: {error_msg}", exc_info=True)
-            print(f"Ошибка обновления оценки: {error_msg}")
-            raise ValueError(error_msg)
+            self.logger.error(f"Ошибка обновления оценки с ID {grade_id}: {error_msg}", exc_info=True)
+            return ValueError(error_msg)
 
     def delete_grade_gui(self, grade_id):
         """Удаление оценки из GUI"""
-        logger.info(f"Начало удаления оценки с ID: {grade_id}")
+        self.logger.info(f"Начало удаления оценки с ID: {grade_id}")
 
         try:
             # Получаем информацию об оценке перед удалением для логирования
             grade_info = self.db.get_grade_by_id(grade_id)
             if grade_info:
-                logger.debug(f"Удаление оценки: ID {grade_id}, ученик ID {grade_info[0]}, предмет '{grade_info[1]}', оценка {grade_info[2]}")
+                self.logger.debug(f"Удаление оценки: ID {grade_id}, ученик ID {grade_info[0]}, предмет '{grade_info[1]}', оценка {grade_info[2]}")
 
             self.db.delete_grade(grade_id)
-            logger.info(f"Оценка успешно удалена: ID {grade_id}")
+            self.logger.info(f"Оценка успешно удалена: ID {grade_id}")
             return True
         except Exception as e:
-            logger.error(f"Ошибка удаления оценки с ID {grade_id}: {e}", exc_info=True)
-            print(f"Ошибка удаления оценки: {e}")
+            self.logger.error(f"Ошибка удаления оценки с ID {grade_id}: {e}", exc_info=True)
             return False
 
     def get_academic_report(self):
@@ -694,8 +673,7 @@ class SchoolDataManager:
         try:
             return self.db.get_grades()
         except Exception as e:
-            logging.error(f"Ошибка получения отчета: {e}", exc_info=True)
-            print(f"Ошибка получения отчета: {e}")
+            self.logger.error(f"Ошибка получения отчета: {e}", exc_info=True)
             return {'good_students': [], 'bad_students': [], 'total_students': 0}
 
 
@@ -751,11 +729,11 @@ class ReportGenerator:
 
     def generate_pdf_report(self, data, report_type, output_file):
         """Генерация PDF отчета с использованием HTML шаблона"""
-        logger.info(f"Начало генерации PDF отчета: тип '{report_type}', файл '{output_file}', записей: {len(data)}")
+        self.logger.info(f"Начало генерации PDF отчета: тип '{report_type}', файл '{output_file}', записей: {len(data)}")
 
         try:
             template = self.env.get_template('report_template_pdf.html')
-            logger.debug("HTML шаблон успешно загружен")
+            self.logger.debug("HTML шаблон успешно загружен")
 
             if report_type == "Учителя":
                 headers = ["ФИО", "Дата рождения", "Предмет", "Классы"]
@@ -764,9 +742,9 @@ class ReportGenerator:
             else:
                 headers = ["ФИО", "Предмет", "Оценка"]
 
-            logger.debug(f"Заголовки отчета: {headers}")
+            self.logger.debug(f"Заголовки отчета: {headers}")
             font_path = os.path.abspath("fonts").replace("\\", "/")
-            logger.debug(f"Путь к шрифтам: {font_path}")
+            self.logger.debug(f"Путь к шрифтам: {font_path}")
 
             html_content = template.render(
                 report_type=report_type,
@@ -776,34 +754,34 @@ class ReportGenerator:
                 total_count=len(data),
                 font_path=font_path
             )
-            logger.debug("HTML контент успешно сгенерирован")
+            self.logger.debug("HTML контент успешно сгенерирован")
 
             return self.generate_pdf_from_html_template(html_content, output_file)
 
         except Exception as e:
-            logger.error(f"Ошибка при генерации PDF отчета '{report_type}': {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка при генерации PDF отчета '{report_type}': {str(e)}", exc_info=True)
             raise FileOperationError(f"Ошибка при генерации PDF отчета: {str(e)}")
 
     def generate_pdf_from_html_template(self, html_content, output_file):
         """Создание PDF из HTML контента"""
-        logger.debug(f"Начало создания PDF файла: '{output_file}'")
+        self.logger.debug(f"Начало создания PDF файла: '{output_file}'")
 
         try:
             font_folder = os.path.abspath("fonts")
-            logger.debug(f"Регистрация шрифтов из папки: {font_folder}")
+            self.logger.debug(f"Регистрация шрифтов из папки: {font_folder}")
 
             pdfmetrics.registerFont(TTFont("DejaVuSans", os.path.join(font_folder, "DejaVuSans.ttf")))
             pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", os.path.join(font_folder, "DejaVuSans-Bold.ttf")))
-            logger.debug("Шрифты успешно зарегистрированы")
+            self.logger.debug("Шрифты успешно зарегистрированы")
 
             DEFAULT_FONT["helvetica"] = "DejaVuSans"
             DEFAULT_FONT["Helvetica"] = "DejaVuSans"
             DEFAULT_FONT["helvetica-bold"] = "DejaVuSans-Bold"
             DEFAULT_FONT["Helvetica-Bold"] = "DejaVuSans-Bold"
-            logger.debug("Настройки шрифтов по умолчанию обновлены")
+            self.logger.debug("Настройки шрифтов по умолчанию обновлены")
 
             with open(output_file, "wb") as output_file_obj:
-                logger.debug("Создание PDF с помощью pisa")
+                self.logger.debug("Создание PDF с помощью pisa")
                 pisa_status = pisa.CreatePDF(
                     html_content,
                     dest=output_file_obj,
@@ -811,14 +789,14 @@ class ReportGenerator:
                 )
 
             if pisa_status.err:
-                logger.error(f"Ошибка создания PDF: {pisa_status.err}")
+                self.logger.error(f"Ошибка создания PDF: {pisa_status.err}")
                 raise Exception(f"Ошибка создания PDF: {pisa_status.err}")
 
-            logger.info(f"PDF отчет успешно создан: {output_file}")
+            self.logger.info(f"PDF отчет успешно создан: {output_file}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка при создании PDF файла '{output_file}': {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка при создании PDF файла '{output_file}': {str(e)}", exc_info=True)
             raise FileOperationError(f"Ошибка при создании PDF: {str(e)}")
 
 
@@ -826,9 +804,10 @@ class SchoolApp:
     """Главное окно приложения: таблицы, кнопки и вся логика GUI."""
 
     def __init__(self, root):
+        self.logger = app_logger
         """Создаёт окно, настраивает виджеты и загружает данные."""
-        logger.info("Запуск приложения SchoolApp.")
-        logger.debug("Инициализация основных атрибутов приложения")
+        self.logger.info("Запуск приложения SchoolApp.")
+        self.logger.debug("Инициализация основных атрибутов приложения")
 
         self.root = root
         self.root.title("Школьная база данных")
@@ -846,38 +825,38 @@ class SchoolApp:
         self.sort_state = {"teachers": {}, "students": {}, "grades": {}}
         self.sort_option_maps = {}
 
-        logger.debug("Инициализация менеджера данных")
+        self.logger.debug("Инициализация менеджера данных")
         self.data_manager = SchoolDataManager()
 
-        logger.debug("Настройка стилей интерфейса")
+        self.logger.debug("Настройка стилей интерфейса")
         self.setup_styles()
 
-        logger.debug("Настройка генератора отчетов")
+        self.logger.debug("Настройка генератора отчетов")
         self.setup_report_generator()
 
-        logger.debug("Создание верхней панели")
+        self.logger.debug("Создание верхней панели")
         self.top_frame = self.create_top_panel()
 
-        logger.debug("Создание панели управления")
+        self.logger.debug("Создание панели управления")
         self.control_frame = self.create_control_panel()
 
-        logger.debug("Создание фрейма для таблиц")
+        self.logger.debug("Создание фрейма для таблиц")
         self.table_frame = tk.Frame(root, bg='#f0f0f0')
         self.table_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        logger.debug("Создание таблицы учителей")
+        self.logger.debug("Создание таблицы учителей")
         self.create_teachers_table()
 
-        logger.debug("Создание таблицы учеников")
+        self.logger.debug("Создание таблицы учеников")
         self.create_students_table()
 
-        logger.debug("Создание таблицы оценок")
+        self.logger.debug("Создание таблицы оценок")
         self.create_grades_table()
 
-        logger.debug("Отображение таблицы учителей по умолчанию")
+        self.logger.debug("Отображение таблицы учителей по умолчанию")
         self.show_table("teachers")
 
-        logger.info("Приложение SchoolApp успешно инициализировано")
+        self.logger.info("Приложение SchoolApp успешно инициализировано")
 
     def create_teachers_table(self):
         """Создаёт таблицу учителей и заполняет её."""
@@ -1129,23 +1108,23 @@ class SchoolApp:
 
     def save_to_file(self, filename):
         """Сохраняет данные текущей таблицы в файл."""
-        logger.info(f"Начало сохранения файла: '{filename}', таблица: {self.current_table}")
+        self.logger.info(f"Начало сохранения файла: '{filename}', таблица: {self.current_table}")
 
         try:
             file_format = self.detect_file_format(filename)
-            logger.debug(f"Определен формат файла: {file_format}")
+            self.logger.debug(f"Определен формат файла: {file_format}")
 
             if file_format == 'xml':
-                logger.debug("Сохранение в формате XML")
+                self.logger.debug("Сохранение в формате XML")
                 self.save_to_xml(filename)
             else:
-                logger.debug("Сохранение в формате CSV")
+                self.logger.debug("Сохранение в формате CSV")
                 self.save_to_csv(filename)
 
-            logger.info(f"Файл успешно сохранен: '{filename}'")
+            self.logger.info(f"Файл успешно сохранен: '{filename}'")
             return True
         except Exception as e:
-            logger.error(f"Ошибка при сохранении файла '{filename}': {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка при сохранении файла '{filename}': {str(e)}", exc_info=True)
             raise FileOperationError(f"Ошибка при сохранении файла: {str(e)}")
 
     def save_to_csv(self, filename):
@@ -1216,23 +1195,23 @@ class SchoolApp:
 
     def load_from_file(self, filename):
         """Загружает данные из XML/CSV в таблицу."""
-        logger.info(f"Начало загрузки файла: '{filename}', таблица: {self.current_table}")
+        self.logger.info(f"Начало загрузки файла: '{filename}', таблица: {self.current_table}")
 
         try:
             file_format = self.detect_file_format(filename)
-            logger.debug(f"Определен формат файла: {file_format}")
+            self.logger.debug(f"Определен формат файла: {file_format}")
 
             if file_format == 'xml':
-                logger.debug("Загрузка из формата XML")
+                self.logger.debug("Загрузка из формата XML")
                 self.load_from_xml(filename)
             else:
-                logger.debug("Загрузка из формата CSV")
+                self.logger.debug("Загрузка из формата CSV")
                 self.load_from_csv(filename)
 
-            logger.info(f"Файл успешно загружен: '{filename}'")
+            self.logger.info(f"Файл успешно загружен: '{filename}'")
             return True
         except Exception as e:
-            logger.error(f"Ошибка при загрузке файла '{filename}': {str(e)}", exc_info=True)
+            self.logger.error(f"Ошибка при загрузке файла '{filename}': {str(e)}", exc_info=True)
             raise FileOperationError(f"Ошибка при загрузке файла: {str(e)}")
 
     def load_from_csv(self, filename):
@@ -1352,26 +1331,26 @@ class SchoolApp:
             imported = self.import_loaded_data_to_db()
             messagebox.showinfo("Импорт в БД", f"Импортировано записей: {imported}")
         except NoImportFileError as e:
-            logging.warning(f"Попытка импорта без выбранного файла: {e}")
+            self.logger.warning(f"Попытка импорта без выбранного файла: {e}")
             messagebox.showwarning("Импорт в БД", str(e))
         except Exception as e:
-            logging.error(f"Ошибка импорта в БД: {e}", exc_info=True)
+            self.logger.error(f"Ошибка импорта в БД: {e}", exc_info=True)
             messagebox.showerror("Импорт в БД", f"Ошибка импорта: {str(e)}")
 
     def import_loaded_data_to_db(self):
         table = self.current_table
-        logger.info(f"Начало импорта данных в таблицу {table}")
+        self.logger.info(f"Начало импорта данных в таблицу {table}")
 
         if not self.current_file:
-            logger.warning(f"Попытка импорта в таблицу {table} без выбранного файла")
+            self.logger.warning(f"Попытка импорта в таблицу {table} без выбранного файла")
             raise NoImportFileError("Сначала выберите файл для загрузки.")
 
         rows = self.loaded_import_data.get(table) or []
         if not rows:
-            logger.warning(f"Попытка импорта в таблицу {table} без загруженных данных")
+            self.logger.warning(f"Попытка импорта в таблицу {table} без загруженных данных")
             raise NoImportFileError("Сначала загрузите файл для текущей таблицы.")
 
-        logger.debug(f"Найдено {len(rows)} строк для импорта в таблицу {table}")
+        self.logger.debug(f"Найдено {len(rows)} строк для импорта в таблицу {table}")
 
         if table == "teachers":
             imported = self.data_manager.import_teachers(rows)
@@ -1382,7 +1361,7 @@ class SchoolApp:
 
         self.refresh_data(table)
         self.data_source[table] = "database"
-        logger.info(f"Успешно импортировано {imported} записей в таблицу {table}")
+        self.logger.info(f"Успешно импортировано {imported} записей в таблицу {table}")
         return imported
 
     def on_add_click(self, _):
@@ -1507,16 +1486,16 @@ class SchoolApp:
                 self.data_manager.add_grade_gui(fio, subject, grade)
                 self.refresh_data("grades")
         except ValueError as exc:
-            logging.warning(f"Ошибка валидации при добавлении записи: {exc}")
+            self.logger.warning(f"Ошибка валидации при добавлении записи: {exc}")
             messagebox.showwarning("Добавление", str(exc))
             return
         except Exception as exc:
-            logging.error(f"Не удалось добавить запись: {exc}", exc_info=True)
+            self.logger.error(f"Не удалось добавить запись: {exc}", exc_info=True)
             messagebox.showerror("Добавление", f"Не удалось добавить запись: {exc}")
             return
 
         dialog.destroy()
-        logging.info("Запись успешно добавлена")
+        self.logger.info("Запись успешно добавлена")
         messagebox.showinfo("Добавление", "Запись успешно добавлена")
 
     def validate_search_input(self, search_term):
@@ -1545,20 +1524,20 @@ class SchoolApp:
 
             self.save_to_file(self.current_file)
             messagebox.showinfo("Сохранение файла", f"Файл успешно сохранен: {self.current_file}")
-            logging.info(f"Файл успешно сохранен: {self.current_file}")
+            self.logger.info(f"Файл успешно сохранен: {self.current_file}")
 
         except NoFileChoosen as e:
             messagebox.showerror("Ошибка сохранения", str(e))
-            logging.warning(f"Попытка сохранения файла без выбора файла: {e}")
+            self.logger.warning(f"Попытка сохранения файла без выбора файла: {e}")
         except FileOperationError as e:
             messagebox.showerror("Ошибка операции с файлом", str(e))
-            logging.error(f"Ошибка операции с файлом при сохранении: {e}")
+            self.logger.error(f"Ошибка операции с файлом при сохранении: {e}")
         except XMLProcessingError as e:
             messagebox.showerror("Ошибка обработки XML", str(e))
-            logging.error(f"Ошибка обработки XML при сохранении: {e}")
+            self.logger.error(f"Ошибка обработки XML при сохранении: {e}")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Произошла ошибка при сохранении файла: {str(e)}")
-            logging.critical(f"Критическая ошибка при сохранении файла: {e}", exc_info=True)
+            self.logger.critical(f"Критическая ошибка при сохранении файла: {e}", exc_info=True)
 
     def on_open_click(self, _):
         """Загружает таблицу из файла."""
@@ -1581,16 +1560,16 @@ class SchoolApp:
             messagebox.showinfo("Открытие файла", f"Файл успешно открыт: {file_path}")
 
         except NoFileChoosen as e:
-            logging.warning(f"Файл не выбран для открытия: {e}")
+            self.logger.warning(f"Файл не выбран для открытия: {e}")
             messagebox.showerror("Ошибка выбора файла", str(e))
         except FileOperationError as e:
-            logging.error(f"Ошибка операции с файлом при открытии: {e}", exc_info=True)
+            self.logger.error(f"Ошибка операции с файлом при открытии: {e}", exc_info=True)
             messagebox.showerror("Ошибка операции с файлом", str(e))
         except XMLProcessingError as e:
-            logging.error(f"Ошибка обработки XML при открытии: {e}", exc_info=True)
+            self.logger.error(f"Ошибка обработки XML при открытии: {e}", exc_info=True)
             messagebox.showerror("Ошибка обработки XML", str(e))
         except Exception as e:
-            logging.critical(f"Критическая ошибка при открытии файла: {e}", exc_info=True)
+            self.logger.critical(f"Критическая ошибка при открытии файла: {e}", exc_info=True)
             messagebox.showerror("Ошибка", f"Произошла непредвиденная ошибка при открытии файла: {str(e)}")
 
     def on_new_click(self, _):
@@ -2306,10 +2285,10 @@ class SchoolApp:
 
     def perform_search(self, search_term):
         """Выполняет поиск по таблице"""
-        logger.info(f"Выполнение поиска в таблице {self.current_table}: '{search_term}'")
+        self.logger.info(f"Выполнение поиска в таблице {self.current_table}: '{search_term}'")
 
         tree, data = self.get_tree_and_data()
-        logger.debug(f"Поиск среди {len(data)} записей")
+        self.logger.debug(f"Поиск среди {len(data)} записей")
 
         filtered = []
         search_term_lower = search_term.lower()
@@ -2318,7 +2297,7 @@ class SchoolApp:
             if any(search_term_lower in str(field).lower() for field in row["values"]):
                 filtered.append(row)
 
-        logger.info(f"Найдено {len(filtered)} записей по запросу '{search_term}'")
+        self.logger.info(f"Найдено {len(filtered)} записей по запросу '{search_term}'")
         self.populate_tree(tree, filtered)
 
     def on_search(self, event):
@@ -2534,10 +2513,10 @@ class SchoolApp:
 
     def reset_filters(self):
         """Сбрасывает все фильтры и сортировку к исходному состоянию"""
-        logger.info(f"Сброс фильтров и сортировки для таблицы {self.current_table}")
+        self.logger.info(f"Сброс фильтров и сортировки для таблицы {self.current_table}")
         self.search_var.set("")
         tree, data = self.get_tree_and_data()
-        logger.debug(f"Восстановлено {len(data)} записей")
+        self.logger.debug(f"Восстановлено {len(data)} записей")
         self.populate_tree(tree, data)
 
         if self.current_table == "teachers" and self.teachers_sort_options:
@@ -2599,14 +2578,14 @@ class SchoolApp:
 Запуск программы, создание главного окна, установка размера окна
 """
 if __name__ == "__main__":
-    logger.info("Запуск основного приложения")
-    logger.debug("Создание главного окна Tkinter")
+    app_logger.info("Запуск основного приложения")
+    app_logger.debug("Создание главного окна Tkinter")
 
     root = tk.Tk()
     app = SchoolApp(root)
     root.geometry("950x650")
 
-    logger.info("Запуск главного цикла приложения")
+    app_logger.info("Запуск главного цикла приложения")
     root.mainloop()
 
-    logger.info("Приложение завершено")
+    app_logger.info("Приложение завершено")
