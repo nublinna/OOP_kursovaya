@@ -23,6 +23,34 @@ from reportlab.pdfbase.ttfonts import TTFont
 from database import SchoolDatabase
 from models import Teacher, Student, GradeRecord
 
+# Настройка логирования
+LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+LOG_FILE = 'school_app.log'
+
+# Создаем логгер для приложения
+logger = logging.getLogger('SchoolApp')
+logger.setLevel(logging.DEBUG)
+
+# Создаем обработчик для файла
+file_handler = logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+
+# Создаем форматтер и добавляем его к обработчику
+formatter = logging.Formatter(LOG_FORMAT)
+file_handler.setFormatter(formatter)
+
+# Добавляем обработчик к логгеру
+logger.addHandler(file_handler)
+
+# Также настраиваем корневой логгер для совместимости с существующими вызовами
+logging.basicConfig(
+    level=logging.DEBUG,
+    format=LOG_FORMAT,
+    filename=LOG_FILE,
+    filemode='a',
+    encoding='utf-8'
+)
+
 
 class SchoolDataManager:
     """Готовит данные из базы для графического интерфейса."""
